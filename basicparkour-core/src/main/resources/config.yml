@@ -1,0 +1,128 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Basic Parkour Plugin — Global Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Storage backend.
+# Options: memory | sqlite | mysql
+storage:
+  type: sqlite
+
+  # MySQL / PostgreSQL connection settings (only used when type: mysql)
+  mysql:
+    host: localhost
+    port: 3306
+    database: basicparkour
+    username: root
+    password: ""
+    # HikariCP pool size (recommend 5-10 for most servers)
+    pool-size: 10
+
+# ─── Visibility ───────────────────────────────────────────────────────────────
+visibility:
+  # Default visibility mode for players in active sessions.
+  # Options: ALL | NONE
+  # FRIENDS mode requires a FriendsProvider SPI implementation.
+  default: ALL
+
+# ─── Timer ────────────────────────────────────────────────────────────────────
+timer:
+  # How often to update the action bar timer (in ticks, 1 = every tick).
+  display-interval-ticks: 1
+
+# ─── Ghost system ─────────────────────────────────────────────────────────────
+ghost:
+  # Whether the ghost recording system is enabled.
+  enabled: true
+  # How often to capture a position frame (milliseconds). 50ms = 20fps.
+  record-interval-ms: 50
+  # Maximum number of frames to store per recording.
+  # 12000 frames at 50ms = 600 seconds = 10 minutes max recording length.
+  max-frames: 12000
+
+# ─── Commands ─────────────────────────────────────────────────────────────────
+# All command literals and permission nodes are fully customisable here.
+# Changes take effect after a server restart (commands are registered at boot).
+commands:
+  # Root command literal that players type (e.g. /basicparkour).
+  root: basicparkour
+  # Additional aliases for the root command.
+  aliases:
+    - pk
+    - parkour
+  # Permission nodes checked at command execution time.
+  permissions:
+    # Required for join / leave / top / pb sub-commands.
+    use: basicparkour.use
+    # Required for reload / resetpb sub-commands.
+    admin: basicparkour.admin
+  # Sub-command literal names (rename any of these freely).
+  subcommands:
+    join: join
+    leave: leave
+    top: top
+    pb: pb
+    reload: reload
+    resetpb: resetpb
+    generate: generate
+    setentry: setentry
+    removeentry: removeentry
+
+# ─── Generator ────────────────────────────────────────────────────────────────
+# Controls the dynamic parkour generator system.
+generator:
+  # The leaderboard course ID shared by all generated runs.
+  # All generated times appear under this single "course" in the leaderboard.
+  leaderboard-id: "__generated__"
+
+  # How many seconds to wait after a generated session ends before removing blocks.
+  # Can be overridden per template in generators/*.yml
+  default-cleanup-delay-seconds: 30
+
+  # Extra clearance (blocks) added between allocated dedicated-world slots.
+  dedicated-world-padding: 64
+
+  # Y level at which generated runs are anchored in dedicated-world mode.
+  dedicated-world-y: 80
+
+  # Default difficulty parameters (used unless overridden in the template YAML).
+  difficulties:
+    EASY:
+      min-gap: 2
+      max-gap: 3
+      min-height-delta: -1
+      max-height-delta: 1
+      platform-min-size: 2
+      platform-max-size: 3
+      obstacle-chance: 0.0
+      modifier-chance: 0.0
+    MEDIUM:
+      min-gap: 3
+      max-gap: 5
+      min-height-delta: -2
+      max-height-delta: 2
+      platform-min-size: 1
+      platform-max-size: 2
+      obstacle-chance: 0.15
+      modifier-chance: 0.05
+    HARD:
+      min-gap: 4
+      max-gap: 6
+      min-height-delta: -2
+      max-height-delta: 3
+      platform-min-size: 1
+      platform-max-size: 2
+      obstacle-chance: 0.25
+      modifier-chance: 0.10
+    EXPERT:
+      min-gap: 5
+      max-gap: 8
+      min-height-delta: -3
+      max-height-delta: 4
+      platform-min-size: 1
+      platform-max-size: 1
+      obstacle-chance: 0.40
+      modifier-chance: 0.18
+
+  # Entry points registered via /basicparkour setentry.
+  # Managed automatically — do not edit by hand unless you know what you are doing.
+  entry-points: {}

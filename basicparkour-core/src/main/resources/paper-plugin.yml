@@ -1,0 +1,18 @@
+name: BasicParkour
+version: '${project.version}'
+main: me.usainsrht.basicparkour.core.BasicParkourPlugin
+api-version: '1.21'
+description: API-first, Folia-native parkour plugin
+authors:
+  - UsainSrht
+website: https://github.com/UsainSrht/BasicParkour
+folia-supported: true
+
+# ── Paper plugin system ────────────────────────────────────────────────────────
+# The loader downloads runtime libraries (HikariCP, SQLite, MySQL) via Maven.
+# The bootstrapper wires lifecycle events before the server fully starts.
+loader: me.usainsrht.basicparkour.core.BasicParkourLoader
+bootstrapper: me.usainsrht.basicparkour.core.BasicParkourBootstrap
+
+# Commands are registered programmatically via the Brigadier API — no 'commands:'
+# block needed here for Paper plugins.
