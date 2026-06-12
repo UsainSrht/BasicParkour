@@ -276,9 +276,10 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         Map<String, List<PlacedBlock>> byChunk = new LinkedHashMap<>();
         synchronized (instance.placedBlocks) {
             for (PlacedBlock pb : instance.placedBlocks) {
-                String chunkKey = pb.location().getWorld().getName() + ","
-                    + pb.location().getChunk().getX() + ","
-                    + pb.location().getChunk().getZ();
+                // Use bit-shift arithmetic instead of getChunk() to avoid Folia's main-thread check
+                int cx = pb.location().getBlockX() >> 4;
+                int cz = pb.location().getBlockZ() >> 4;
+                String chunkKey = pb.location().getWorld().getName() + "," + cx + "," + cz;
                 byChunk.computeIfAbsent(chunkKey, k -> new ArrayList<>()).add(pb);
             }
         }
@@ -382,9 +383,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 synchronized (instance.placedBlocks) {
                     for (PlacedBlock pb : instance.placedBlocks) {
                         if (pb.platformIndex() <= removeTo) {
-                            String key = pb.location().getWorld().getName() + ","
-                                + pb.location().getChunk().getX() + ","
-                                + pb.location().getChunk().getZ();
+                            int cx = pb.location().getBlockX() >> 4;
+                            int cz = pb.location().getBlockZ() >> 4;
+                            String key = pb.location().getWorld().getName() + "," + cx + "," + cz;
                             toRemoveByChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
                         }
                     }
@@ -417,9 +418,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 // ── Dispatch placement per chunk ────────────────────────────
                 Map<String, List<PlacedBlock>> newByChunk = new LinkedHashMap<>();
                 for (PlacedBlock pb : newPlatform.placedBlocks()) {
-                    String key = pb.location().getWorld().getName() + ","
-                        + pb.location().getChunk().getX() + ","
-                        + pb.location().getChunk().getZ();
+                    int cx = pb.location().getBlockX() >> 4;
+                    int cz = pb.location().getBlockZ() >> 4;
+                    String key = pb.location().getWorld().getName() + "," + cx + "," + cz;
                     newByChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
                 }
                 for (List<PlacedBlock> chunkBlocks : newByChunk.values()) {
@@ -495,9 +496,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         Map<String, List<PlacedBlock>> byChunk = new LinkedHashMap<>();
         synchronized (instance.placedBlocks) {
             for (PlacedBlock pb : instance.placedBlocks) {
-                String key = pb.location().getWorld().getName() + ","
-                    + pb.location().getChunk().getX() + ","
-                    + pb.location().getChunk().getZ();
+                int cx = pb.location().getBlockX() >> 4;
+                int cz = pb.location().getBlockZ() >> 4;
+                String key = pb.location().getWorld().getName() + "," + cx + "," + cz;
                 byChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
             }
         }
