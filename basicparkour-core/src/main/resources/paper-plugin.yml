@@ -16,3 +16,27 @@ bootstrapper: me.usainsrht.basicparkour.core.BasicParkourBootstrap
 
 # Commands are registered programmatically via the Brigadier API — no 'commands:'
 # block needed here for Paper plugins.
+
+dependencies:
+  server:
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+    Citizens:
+      load: BEFORE
+      required: false
+    FancyNpcs:
+      load: BEFORE
+      required: false
+    FancyHolograms:
+      load: BEFORE
+      required: false
+    DecentHolograms:
+      load: BEFORE
+      required: false
+    MiniPlaceholders:
+      load: BEFORE
+      required: false
+    TAB:
+      load: BEFORE
+      required: false

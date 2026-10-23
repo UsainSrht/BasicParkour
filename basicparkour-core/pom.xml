@@ -75,6 +75,48 @@
             <artifactId>placeholderapi</artifactId>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Citizens -->
+        <dependency>
+            <groupId>net.citizensnpcs</groupId>
+            <artifactId>citizens-main</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- FancyNpcs -->
+        <dependency>
+            <groupId>de.oliver</groupId>
+            <artifactId>FancyNpcs</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- FancyHolograms -->
+        <dependency>
+            <groupId>de.oliver</groupId>
+            <artifactId>FancyHolograms</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- DecentHolograms -->
+        <dependency>
+            <groupId>com.github.decentsoftware-eu</groupId>
+            <artifactId>decentholograms</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- MiniPlaceholders -->
+        <dependency>
+            <groupId>io.github.miniplaceholders</groupId>
+            <artifactId>miniplaceholders-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- TAB API -->
+        <dependency>
+            <groupId>com.github.NEZNAMY</groupId>
+            <artifactId>TAB-API</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>

@@ -20,9 +20,33 @@ storage:
 # ─── Visibility ───────────────────────────────────────────────────────────────
 visibility:
   # Default visibility mode for players in active sessions.
-  # Options: ALL | NONE
+  # Options: ALL | NONE | TRANSLUCENT
+  # TRANSLUCENT: players appear as semi-transparent ghosts via scoreboard teams and invisibility.
   # FRIENDS mode requires a FriendsProvider SPI implementation.
-  default: ALL
+  default: TRANSLUCENT
+
+# ─── TAB Plugin Integration ───────────────────────────────────────────────────
+tab:
+  # Whether to hook into NEZNAMY's TAB plugin when installed.
+  enabled: true
+  # Disable player-to-player collision during parkour via TAB NameTagManager.
+  disable-collision: true
+  # Whether to hide player nametags while in a parkour session.
+  hide-nametag: false
+  # Pause TAB team handling during parkour so dedicated translucent teams are not overwritten.
+  pause-team-handling: true
+
+# ─── Hologram System ──────────────────────────────────────────────────────────
+hologram:
+  # Preferred provider. Options: auto | FancyHolograms | DecentHolograms
+  provider: auto
+  # How often (in seconds) to refresh active leaderboard and course info holograms.
+  refresh-interval-seconds: 60
+
+# ─── NPC System ───────────────────────────────────────────────────────────────
+npc:
+  # Automatically update linked TOP_HOLDER NPC skins and names on new records.
+  auto-update-top-holder: true
 
 # ─── Timer ────────────────────────────────────────────────────────────────────
 timer:
@@ -38,6 +62,12 @@ ghost:
   # Maximum number of frames to store per recording.
   # 12000 frames at 50ms = 600 seconds = 10 minutes max recording length.
   max-frames: 12000
+  playback:
+    enabled: true
+    # Mode: SERVER_BEST | PERSONAL_BEST
+    mode: SERVER_BEST
+    # Whether the replay ghost is rendered as a translucent entity on the parkour team.
+    translucent: true
 
 # ─── Commands ─────────────────────────────────────────────────────────────────
 # All command literals and permission nodes are fully customisable here.

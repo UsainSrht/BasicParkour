@@ -68,6 +68,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
     private BasicParkourAPIImpl basicParkourAPI;
     private CommandConfig commandConfig;
     private GeneratorManagerImpl generatorManager;
+    private me.usainsrht.basicparkour.core.tab.TabHook tabHook;
+    private me.usainsrht.basicparkour.core.hologram.HologramManager hologramManager;
+    private me.usainsrht.basicparkour.core.npc.NpcManager npcManager;
 
     // ────────────────────────────────────────────────────────────────────────────
 
@@ -111,6 +114,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
         modifierRegistry = new ModifierRegistryImpl();
         registerBuiltInModifiers();
 
+        // ── 4b. TAB Hook ─────────────────────────────────────────────────────
+        tabHook = new me.usainsrht.basicparkour.core.tab.TabHook(this);
+
         // ── 5. Session manager ───────────────────────────────────────────────
         sessionManager = new SessionManager(this, scheduler, messages);
 
@@ -149,11 +155,17 @@ public final class BasicParkourPlugin extends JavaPlugin {
         GeneratorEntryListener entryListener = new GeneratorEntryListener(this, generatorManager);
         pm.registerEvents(entryListener, this);
 
+        // ── 10c. Hologram & NPC Managers ─────────────────────────────────────
+        hologramManager = new me.usainsrht.basicparkour.core.hologram.HologramManager(this);
+        npcManager = new me.usainsrht.basicparkour.core.npc.NpcManager(this);
+
         // ── 11. Commands (Paper Brigadier) ──────────────────────────────────────
         BasicParkourCommand cmdHandler =
                 new BasicParkourCommand(this, sessionManager, commandConfig);
         cmdHandler.setGeneratorReferences(generatorManager, entryListener);
         cmdHandler.setEditorManager(editorManager);
+        cmdHandler.setHologramManager(hologramManager);
+        cmdHandler.setNpcManager(npcManager);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> cmdHandler.register(event.registrar()));
 
@@ -162,6 +174,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
             new me.usainsrht.basicparkour.core.papi.BasicParkourExpansion(this).register();
             getLogger().info("[BasicParkour] PlaceholderAPI expansion registered.");
         }
+
+        // ── 11c. MiniPlaceholders ─────────────────────────────────────────────
+        me.usainsrht.basicparkour.core.miniplaceholders.MiniPlaceholdersHook.init(this);
 
         // ── 12. bStats Metrics ────────────────────────────────────────────────
         new Metrics(this, 31868);
@@ -172,6 +187,11 @@ public final class BasicParkourPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (hologramManager != null)
+            hologramManager.shutdown();
+        if (tabHook != null)
+            tabHook.cleanup();
+        me.usainsrht.basicparkour.core.miniplaceholders.MiniPlaceholdersHook.shutdown();
         if (generatorManager != null)
             generatorManager.shutdown();
         if (sessionManager != null)
@@ -201,6 +221,15 @@ public final class BasicParkourPlugin extends JavaPlugin {
         java.io.File menusFile = new java.io.File(getDataFolder(), "menus.yml");
         if (menusFile.exists()) {
             menuConfig.reload(org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(menusFile));
+        }
+
+        if (hologramManager != null) {
+            hologramManager.selectProvider();
+            hologramManager.load();
+        }
+        if (npcManager != null) {
+            npcManager.load();
+            npcManager.refreshAllTopHolders();
         }
 
         // Re-load courses
@@ -275,5 +304,17 @@ public final class BasicParkourPlugin extends JavaPlugin {
 
     public GeneratorManagerImpl getGeneratorManager() {
         return generatorManager;
+    }
+
+    public me.usainsrht.basicparkour.core.tab.TabHook getTabHook() {
+        return tabHook;
+    }
+
+    public me.usainsrht.basicparkour.core.hologram.HologramManager getHologramManager() {
+        return hologramManager;
+    }
+
+    public me.usainsrht.basicparkour.core.npc.NpcManager getNpcManager() {
+        return npcManager;
     }
 }

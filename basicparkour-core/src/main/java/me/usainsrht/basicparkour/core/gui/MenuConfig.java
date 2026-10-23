@@ -36,7 +36,7 @@ public final class MenuConfig {
             return ItemStack.of(Material.AIR);
         }
         try {
-            return YamlItem.parse(section, resolvers);
+            return YamlItem.parse(section, me.usainsrht.basicparkour.core.miniplaceholders.MiniPlaceholdersHook.combine(null, resolvers));
         } catch (Exception e) {
             return ItemStack.of(Material.STONE);
         }
@@ -45,7 +45,7 @@ public final class MenuConfig {
     @NotNull
     public ItemStack parseItem(@NotNull ConfigurationSection section, @NotNull TagResolver... resolvers) {
         try {
-            return YamlItem.parse(section, resolvers);
+            return YamlItem.parse(section, me.usainsrht.basicparkour.core.miniplaceholders.MiniPlaceholdersHook.combine(null, resolvers));
         } catch (Exception e) {
             return ItemStack.of(Material.STONE);
         }

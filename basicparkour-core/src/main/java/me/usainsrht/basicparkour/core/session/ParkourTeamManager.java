@@ -37,6 +37,7 @@ public final class ParkourTeamManager {
             Team existing = scoreboard.getTeam(TEAM_NAME);
             this.team = (existing != null) ? existing : scoreboard.registerNewTeam(TEAM_NAME);
             this.team.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
+            this.team.setCanSeeFriendlyInvisibles(true);
         } else {
             // Folia: Main scoreboard is unsupported. We will use fallback.
             this.team = null;
@@ -44,29 +45,58 @@ public final class ParkourTeamManager {
     }
 
     /**
-     * Adds {@code player} to the no-collision team, or applies the Folia fallback.
+     * Adds {@code player} to the no-collision & translucent team, or applies the Folia fallback.
      *
      * @param player the player entering a parkour session
      */
     public void addPlayer(@NotNull Player player) {
         if (team != null) {
-            team.addPlayer(player);
-        } else if (isFolia) {
+            team.addEntity(player);
+        }
+        if (isFolia) {
             scheduler.runOnEntity(player, () -> player.setCollidable(false));
         }
     }
 
     /**
-     * Removes {@code player} from the no-collision team, restoring normal physics.
+     * Removes {@code player} from the no-collision & translucent team, restoring normal physics.
      *
      * @param player the player whose session ended
      */
     public void removePlayer(@NotNull Player player) {
         if (team != null) {
-            team.removePlayer(player);
-        } else if (isFolia) {
+            team.removeEntity(player);
+        }
+        if (isFolia) {
             scheduler.runOnEntity(player, () -> player.setCollidable(true));
         }
+    }
+
+    /**
+     * Adds an entity (e.g. ghost replay ArmorStand) to the team so it can be seen translucently
+     * and has no collision.
+     *
+     * @param entity the entity to add
+     */
+    public void addEntity(@NotNull org.bukkit.entity.Entity entity) {
+        if (team != null) {
+            team.addEntity(entity);
+        }
+    }
+
+    /**
+     * Removes an entity from the team.
+     *
+     * @param entity the entity to remove
+     */
+    public void removeEntity(@NotNull org.bukkit.entity.Entity entity) {
+        if (team != null) {
+            team.removeEntity(entity);
+        }
+    }
+
+    public @org.jetbrains.annotations.Nullable Team getTeam() {
+        return team;
     }
 
     /**

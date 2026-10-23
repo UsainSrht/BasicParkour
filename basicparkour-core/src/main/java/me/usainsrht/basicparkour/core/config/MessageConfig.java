@@ -103,6 +103,10 @@ public final class MessageConfig {
         return messages.getOrDefault(key, YamlMessage.empty());
     }
 
+    public void send(@NotNull YamlMessage msg, @NotNull net.kyori.adventure.audience.Audience audience, net.kyori.adventure.text.minimessage.tag.resolver.TagResolver... resolvers) {
+        msg.send(audience, me.usainsrht.basicparkour.core.miniplaceholders.MiniPlaceholdersHook.combine(audience, resolvers));
+    }
+
     // ── Getters ──────────────────────────────────────────────────────────────
 
     public @NotNull YamlMessage getCourseStart() { return courseStart; }

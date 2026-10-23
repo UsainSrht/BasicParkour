@@ -138,7 +138,12 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         // Add to no-collision team so parkour players can't push each other
         teamManager.addPlayer(player);
 
-        // Apply visibility (hide other parkour players from each other)
+        // Apply TAB hook rules (collision rule override / nametag handling)
+        if (plugin.getTabHook() != null) {
+            plugin.getTabHook().onPlayerEnterSession(player);
+        }
+
+        // Apply visibility (hide other parkour players or make them translucent)
         applyVisibility(player);
 
         // Start ghost recording if enabled
@@ -146,8 +151,8 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             plugin.getGhostRecorder().startRecording(player);
         }
 
-        // Notify player via YamlMessage
-        messages.getCourseStart().send((Audience) player,
+        // Notify player via YamlMessage with MiniPlaceholders support
+        messages.send(messages.getCourseStart(), player,
             Placeholder.component("course", course.getDisplayName()));
 
         plugin.getLogger().info("[BasicParkour] Started session for %s on course '%s'".formatted(
@@ -166,6 +171,10 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     @NotNull
     public Collection<ParkourSession> getActiveSessions() {
         return Collections.unmodifiableCollection(sessions.values());
+    }
+
+    public @NotNull ParkourTeamManager getTeamManager() {
+        return teamManager;
     }
 
     // -----------------------------------------------------------------------
@@ -199,8 +208,8 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         // Advance
         session.advanceCheckpoint();
 
-        // Notify player via YamlMessage
-        messages.getCheckpointReach().send((Audience) player,
+        // Notify player via YamlMessage with MiniPlaceholders
+        messages.send(messages.getCheckpointReach(), player,
             Placeholder.parsed("checkpoint", String.valueOf(checkpoint.getIndex() + 1)),
             Placeholder.parsed("time", snapshot.formatted()));
 
@@ -224,6 +233,11 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
 
         long elapsed = session.getElapsedMillis();
         sessions.remove(player.getUniqueId());
+
+        // TAB hook restore
+        if (plugin.getTabHook() != null) {
+            plugin.getTabHook().onPlayerLeaveSession(player);
+        }
 
         // Remove from no-collision team
         teamManager.removePlayer(player);
@@ -255,6 +269,14 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         plugin.getRepository().getPersonalBest(player.getUniqueId(), session.getCourse().getId())
             .thenCompose(previousBest -> plugin.getRepository().saveRecord(newRecord)
                 .thenAccept(isNewBest -> {
+                    // Refresh holograms and top holder NPCs for this course
+                    if (plugin.getHologramManager() != null) {
+                        plugin.getHologramManager().refreshCourseHolograms(session.getCourse().getId());
+                    }
+                    if (plugin.getNpcManager() != null) {
+                        plugin.getNpcManager().updateTopHolders(session.getCourse().getId());
+                    }
+
                     // Schedule event fire on appropriate thread
                     scheduler.runOnEntity(player, () -> {
                         CourseCompleteEvent ev = new CourseCompleteEvent(
@@ -263,12 +285,12 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                         Bukkit.getPluginManager().callEvent(ev);
 
                         // Display completion message via YamlMessage
-                        messages.getCourseComplete().send((Audience) player,
+                        messages.send(messages.getCourseComplete(), player,
                             Placeholder.parsed("time", TimerFormatter.format(elapsed)),
                             Placeholder.component("course", session.getCourse().getDisplayName()));
 
                         if (isNewBest) {
-                            messages.getPersonalBest().send((Audience) player,
+                            messages.send(messages.getPersonalBest(), player,
                                 Placeholder.parsed("time", TimerFormatter.format(elapsed)),
                                 Placeholder.component("course", session.getCourse().getDisplayName()));
                         }
@@ -322,7 +344,6 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         }
 
         // Reset session state to ACTIVE so the player can continue from checkpoint
-        // We do this by creating a fresh session pinned to the last checkpoint index
         sessions.remove(player.getUniqueId());
 
         // Fire event
@@ -332,7 +353,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         scheduler.runOnEntity(player, () -> {
             player.teleportAsync(respawnLoc).thenRun(() -> {
                 // Show fail message via YamlMessage
-                messages.getSessionFail().send((Audience) player,
+                messages.send(messages.getSessionFail(), player,
                     Placeholder.component("course", session.getCourse().getDisplayName()));
 
                 if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.RESTART_DIE) {
@@ -340,7 +361,6 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                     ParkourSessionImpl newSession = new ParkourSessionImpl(
                         player, session.getJoinLocation(), session.getCourse(), this, session.getStartTime()
                     );
-                    // Fast-forward the checkpoint index to where they were
                     int cpIdx = session.getCurrentCheckpointIndex();
                     for (int i = 0; i <= cpIdx; i++) {
                         newSession.advanceCheckpoint();
@@ -348,6 +368,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                     sessions.put(player.getUniqueId(), newSession);
                 } else {
                     // FAIL_DIE: completely end session
+                    if (plugin.getTabHook() != null) {
+                        plugin.getTabHook().onPlayerLeaveSession(player);
+                    }
                     teamManager.removePlayer(player);
                     restoreVisibility(player);
                     if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
@@ -371,6 +394,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         ParkourSessionImpl session = sessions.remove(player.getUniqueId());
         if (session != null) {
             session.tryInvalidate();
+            if (plugin.getTabHook() != null) {
+                plugin.getTabHook().onPlayerLeaveSession(player);
+            }
             teamManager.removePlayer(player);
             restoreVisibility(player);
             if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
@@ -391,7 +417,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             Player player = session.getPlayer();
             if (!player.isOnline()) return;
             var snapshot = session.getTimerSnapshot();
-            messages.getTimerDisplay().send((Audience) player,
+            messages.send(messages.getTimerDisplay(), player,
                 Placeholder.parsed("time", snapshot.formatted()),
                 Placeholder.parsed("checkpoint", String.valueOf(snapshot.checkpointIndex() + 1)),
                 Placeholder.parsed("total", String.valueOf(session.getCourse().getCheckpoints().size())));
@@ -403,7 +429,15 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     // -----------------------------------------------------------------------
 
     private void applyVisibility(@NotNull Player newPlayer) {
-        String mode = plugin.getConfig().getString("visibility.default", "ALL");
+        String mode = plugin.getConfig().getString("visibility.default", "ALL").toUpperCase(java.util.Locale.ROOT);
+        if (mode.equals("TRANSLUCENT")) {
+            newPlayer.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                org.bukkit.potion.PotionEffectType.INVISIBILITY,
+                org.bukkit.potion.PotionEffect.INFINITE_DURATION,
+                0, false, false, false
+            ));
+        }
+
         for (ParkourSessionImpl other : sessions.values()) {
             Player otherPlayer = other.getPlayer();
             if (otherPlayer.equals(newPlayer)) continue;
@@ -412,7 +446,10 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                     newPlayer.hidePlayer(plugin, otherPlayer);
                     otherPlayer.hidePlayer(plugin, newPlayer);
                 }
-                // FRIENDS would require FriendsProvider SPI — fallthrough to ALL
+                case "TRANSLUCENT" -> {
+                    newPlayer.showPlayer(plugin, otherPlayer);
+                    otherPlayer.showPlayer(plugin, newPlayer);
+                }
                 default -> {
                     newPlayer.showPlayer(plugin, otherPlayer);
                     otherPlayer.showPlayer(plugin, newPlayer);
@@ -422,6 +459,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     }
 
     private void restoreVisibility(@NotNull Player leavingPlayer) {
+        leavingPlayer.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
         for (Player online : Bukkit.getOnlinePlayers()) {
             online.showPlayer(plugin, leavingPlayer);
             leavingPlayer.showPlayer(plugin, online);

@@ -158,6 +158,18 @@ public final class GhostRecorderImpl implements GhostRecorder {
                         eq.setChestplate(new org.bukkit.inventory.ItemStack(org.bukkit.Material.CHAINMAIL_CHESTPLATE));
                         eq.setLeggings(new org.bukkit.inventory.ItemStack(org.bukkit.Material.CHAINMAIL_LEGGINGS));
                         eq.setBoots(new org.bukkit.inventory.ItemStack(org.bukkit.Material.CHAINMAIL_BOOTS));
+
+                        // Add to parkour team so it shares translucent visibility with parkour players
+                        plugin.getSessionManager().getTeamManager().addEntity(as);
+
+                        // If ghost translucency is enabled, apply invisibility so it renders as a see-through ghost
+                        if (plugin.getConfig().getBoolean("ghost.playback.translucent", true)) {
+                            as.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                                org.bukkit.potion.PotionEffectType.INVISIBILITY,
+                                org.bukkit.potion.PotionEffect.INFINITE_DURATION,
+                                0, false, false, false
+                            ));
+                        }
                     });
 
                     long startTime = System.currentTimeMillis();
@@ -199,6 +211,7 @@ public final class GhostRecorderImpl implements GhostRecorder {
         PlaybackSession session = playbacks.remove(player.getUniqueId());
         if (session != null) {
             session.task().cancel();
+            plugin.getSessionManager().getTeamManager().removeEntity(session.entity());
             if (session.entity().isValid()) {
                 scheduler.runOnEntity(session.entity(), () -> session.entity().remove());
             }
@@ -232,6 +245,7 @@ public final class GhostRecorderImpl implements GhostRecorder {
         sessions.clear();
         playbacks.values().forEach(p -> {
             p.task().cancel();
+            plugin.getSessionManager().getTeamManager().removeEntity(p.entity());
             if (p.entity().isValid()) p.entity().remove();
         });
         playbacks.clear();

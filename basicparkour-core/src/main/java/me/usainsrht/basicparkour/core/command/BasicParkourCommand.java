@@ -47,6 +47,8 @@ public final class BasicParkourCommand {
     private GeneratorManagerImpl generatorManager;
     private GeneratorEntryListener entryListener;
     private EditorManager editorManager;
+    private me.usainsrht.basicparkour.core.hologram.HologramManager hologramManager;
+    private me.usainsrht.basicparkour.core.npc.NpcManager npcManager;
 
     public BasicParkourCommand(@NotNull BasicParkourPlugin plugin,
                                 @NotNull SessionManager sessionManager,
@@ -58,6 +60,14 @@ public final class BasicParkourCommand {
 
     public void setEditorManager(@NotNull EditorManager editorManager) {
         this.editorManager = editorManager;
+    }
+
+    public void setHologramManager(me.usainsrht.basicparkour.core.hologram.HologramManager hologramManager) {
+        this.hologramManager = hologramManager;
+    }
+
+    public void setNpcManager(me.usainsrht.basicparkour.core.npc.NpcManager npcManager) {
+        this.npcManager = npcManager;
     }
 
     // -----------------------------------------------------------------------
@@ -324,6 +334,163 @@ public final class BasicParkourCommand {
                         .executes(ctx -> {
                             String id = StringArgumentType.getString(ctx, "id");
                             cmdSave(ctx.getSource().getSender(), id);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // hologram (admin)
+        root.then(Commands.literal("hologram")
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.literal("create")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .then(Commands.argument("type", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> {
+                                            builder.suggest("leaderboard");
+                                            builder.suggest("course_info");
+                                            return builder.buildFuture();
+                                        })
+                                        .then(Commands.argument("courseId", StringArgumentType.word())
+                                                .suggests((ctx, builder) -> {
+                                                    BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                                                    return builder.buildFuture();
+                                                })
+                                                .executes(ctx -> {
+                                                    cmdHologramCreate(ctx.getSource().getSender(),
+                                                            StringArgumentType.getString(ctx, "name"),
+                                                            StringArgumentType.getString(ctx, "type"),
+                                                            StringArgumentType.getString(ctx, "courseId"),
+                                                            10);
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                                .then(Commands.argument("limit", IntegerArgumentType.integer(1, 50))
+                                                        .executes(ctx -> {
+                                                            cmdHologramCreate(ctx.getSource().getSender(),
+                                                                    StringArgumentType.getString(ctx, "name"),
+                                                                    StringArgumentType.getString(ctx, "type"),
+                                                                    StringArgumentType.getString(ctx, "courseId"),
+                                                                    IntegerArgumentType.getInteger(ctx, "limit"));
+                                                            return Command.SINGLE_SUCCESS;
+                                                        }))))))
+                .then(Commands.literal("remove")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    if (hologramManager != null) {
+                                        hologramManager.getHolograms().forEach(h -> builder.suggest(h.getName()));
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    cmdHologramRemove(ctx.getSource().getSender(), StringArgumentType.getString(ctx, "name"));
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                .then(Commands.literal("refresh")
+                        .executes(ctx -> {
+                            cmdHologramRefresh(ctx.getSource().getSender(), null);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    if (hologramManager != null) {
+                                        hologramManager.getHolograms().forEach(h -> builder.suggest(h.getName()));
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    cmdHologramRefresh(ctx.getSource().getSender(), StringArgumentType.getString(ctx, "name"));
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                .then(Commands.literal("list")
+                        .executes(ctx -> {
+                            cmdHologramList(ctx.getSource().getSender());
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // npc (admin)
+        root.then(Commands.literal("npc")
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.literal("link")
+                        .then(Commands.argument("platform", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    builder.suggest("citizens");
+                                    builder.suggest("fancynpcs");
+                                    return builder.buildFuture();
+                                })
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .then(Commands.argument("action", StringArgumentType.word())
+                                                .suggests((ctx, builder) -> {
+                                                    for (var a : me.usainsrht.basicparkour.core.npc.NpcAction.values()) {
+                                                        builder.suggest(a.name().toLowerCase(Locale.ROOT));
+                                                    }
+                                                    return builder.buildFuture();
+                                                })
+                                                .executes(ctx -> {
+                                                    cmdNpcLink(ctx.getSource().getSender(),
+                                                            StringArgumentType.getString(ctx, "platform"),
+                                                            StringArgumentType.getString(ctx, "id"),
+                                                            StringArgumentType.getString(ctx, "action"),
+                                                            "", 1);
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                                .then(Commands.argument("courseId", StringArgumentType.word())
+                                                        .suggests((ctx, builder) -> {
+                                                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                                                            return builder.buildFuture();
+                                                        })
+                                                        .executes(ctx -> {
+                                                            cmdNpcLink(ctx.getSource().getSender(),
+                                                                    StringArgumentType.getString(ctx, "platform"),
+                                                                    StringArgumentType.getString(ctx, "id"),
+                                                                    StringArgumentType.getString(ctx, "action"),
+                                                                    StringArgumentType.getString(ctx, "courseId"), 1);
+                                                            return Command.SINGLE_SUCCESS;
+                                                        })
+                                                        .then(Commands.argument("rank", IntegerArgumentType.integer(1, 10))
+                                                                .executes(ctx -> {
+                                                                    cmdNpcLink(ctx.getSource().getSender(),
+                                                                            StringArgumentType.getString(ctx, "platform"),
+                                                                            StringArgumentType.getString(ctx, "id"),
+                                                                            StringArgumentType.getString(ctx, "action"),
+                                                                            StringArgumentType.getString(ctx, "courseId"),
+                                                                            IntegerArgumentType.getInteger(ctx, "rank"));
+                                                                    return Command.SINGLE_SUCCESS;
+                                                                })))))))
+                .then(Commands.literal("unlink")
+                        .then(Commands.argument("platform", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    builder.suggest("citizens");
+                                    builder.suggest("fancynpcs");
+                                    return builder.buildFuture();
+                                })
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .executes(ctx -> {
+                                            cmdNpcUnlink(ctx.getSource().getSender(),
+                                                    StringArgumentType.getString(ctx, "platform"),
+                                                    StringArgumentType.getString(ctx, "id"));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
+                .then(Commands.literal("topholder")
+                        .then(Commands.argument("platform", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    builder.suggest("citizens");
+                                    builder.suggest("fancynpcs");
+                                    return builder.buildFuture();
+                                })
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .then(Commands.argument("courseId", StringArgumentType.word())
+                                                .suggests((ctx, builder) -> {
+                                                    BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                                                    return builder.buildFuture();
+                                                })
+                                                .executes(ctx -> {
+                                                    cmdNpcLink(ctx.getSource().getSender(),
+                                                            StringArgumentType.getString(ctx, "platform"),
+                                                            StringArgumentType.getString(ctx, "id"),
+                                                            "TOP_HOLDER",
+                                                            StringArgumentType.getString(ctx, "courseId"), 1);
+                                                    return Command.SINGLE_SUCCESS;
+                                                })))))
+                .then(Commands.literal("list")
+                        .executes(ctx -> {
+                            cmdNpcList(ctx.getSource().getSender());
                             return Command.SINGLE_SUCCESS;
                         })));
 
@@ -653,6 +820,132 @@ public final class BasicParkourCommand {
     }
 
     // -----------------------------------------------------------------------
+    // Hologram & NPC sub-commands
+    // -----------------------------------------------------------------------
+
+    private void cmdHologramCreate(@NotNull CommandSender sender,
+                                   @NotNull String name,
+                                   @NotNull String typeStr,
+                                   @NotNull String courseId,
+                                   int limit) {
+        if (!(sender instanceof Player player)) {
+            send(sender, "<red>Only in-game players can create holograms at their location.</red>");
+            return;
+        }
+        if (hologramManager == null || !hologramManager.isEnabled()) {
+            send(sender, "<red>No supported hologram plugin active! Please install FancyHolograms or DecentHolograms.</red>");
+            return;
+        }
+
+        me.usainsrht.basicparkour.core.hologram.HologramType type;
+        try {
+            type = me.usainsrht.basicparkour.core.hologram.HologramType.valueOf(typeStr.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            send(sender, "<red>Invalid hologram type. Use 'leaderboard' or 'course_info'.</red>");
+            return;
+        }
+
+        boolean ok = hologramManager.createHologram(name, type, courseId, player.getLocation(), limit);
+        if (ok) {
+            send(sender, "<green>Hologram '<white>" + name + "</white>' (" + type.name() + ") created for course '<white>" + courseId + "</white>'!</green>");
+        } else {
+            send(sender, "<red>Failed to create hologram.</red>");
+        }
+    }
+
+    private void cmdHologramRemove(@NotNull CommandSender sender, @NotNull String name) {
+        if (hologramManager == null) return;
+        boolean ok = hologramManager.deleteHologram(name);
+        if (ok) {
+            send(sender, "<green>Hologram '<white>" + name + "</white>' removed successfully.</green>");
+        } else {
+            send(sender, "<red>Hologram '<white>" + name + "</white>' not found.</red>");
+        }
+    }
+
+    private void cmdHologramRefresh(@NotNull CommandSender sender, String name) {
+        if (hologramManager == null) return;
+        if (name == null) {
+            hologramManager.refreshAll();
+            send(sender, "<green>All holograms refreshed.</green>");
+        } else {
+            hologramManager.refreshHologram(name);
+            send(sender, "<green>Hologram '<white>" + name + "</white>' refreshed.</green>");
+        }
+    }
+
+    private void cmdHologramList(@NotNull CommandSender sender) {
+        if (hologramManager == null) return;
+        var list = hologramManager.getHolograms();
+        send(sender, "<gold>━━━ Registered Holograms (" + list.size() + ") ━━━</gold>");
+        if (list.isEmpty()) {
+            send(sender, "<gray>No holograms configured yet.</gray>");
+            return;
+        }
+        for (var holo : list) {
+            send(sender, "<gray>• <yellow>" + holo.getName() + "</yellow> <dark_gray>[" + holo.getType().name() + "]</dark_gray> <gray>Course: <white>" + holo.getCourseId() + "</white></gray>");
+        }
+    }
+
+    private void cmdNpcLink(@NotNull CommandSender sender,
+                            @NotNull String platformStr,
+                            @NotNull String id,
+                            @NotNull String actionStr,
+                            @NotNull String courseId,
+                            int rank) {
+        if (npcManager == null) return;
+
+        me.usainsrht.basicparkour.core.npc.NpcPlatform platform;
+        try {
+            platform = me.usainsrht.basicparkour.core.npc.NpcPlatform.valueOf(platformStr.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            send(sender, "<red>Invalid platform! Choose 'citizens' or 'fancynpcs'.</red>");
+            return;
+        }
+
+        me.usainsrht.basicparkour.core.npc.NpcAction action;
+        try {
+            action = me.usainsrht.basicparkour.core.npc.NpcAction.valueOf(actionStr.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            send(sender, "<red>Invalid action! Choose join_course, open_menu, open_generator, leave, show_pb, show_top, or topholder.</red>");
+            return;
+        }
+
+        npcManager.linkNpc(platform, id, action, courseId, rank);
+        send(sender, "<green>Linked <yellow>" + platform.name() + "</yellow> NPC '<white>" + id + "</white>' with action <aqua>" + action.name() + "</aqua>" + (courseId.isEmpty() ? "" : " on course '<white>" + courseId + "</white>'") + "!</green>");
+    }
+
+    private void cmdNpcUnlink(@NotNull CommandSender sender,
+                              @NotNull String platformStr,
+                              @NotNull String id) {
+        if (npcManager == null) return;
+        try {
+            var platform = me.usainsrht.basicparkour.core.npc.NpcPlatform.valueOf(platformStr.toUpperCase(Locale.ROOT));
+            boolean ok = npcManager.unlinkNpc(platform, id);
+            if (ok) {
+                send(sender, "<green>Unlinked <yellow>" + platform.name() + "</yellow> NPC '<white>" + id + "</white>'.</green>");
+            } else {
+                send(sender, "<red>No linked NPC found for ID '<white>" + id + "</white>'.</red>");
+            }
+        } catch (IllegalArgumentException e) {
+            send(sender, "<red>Invalid platform! Choose 'citizens' or 'fancynpcs'.</red>");
+        }
+    }
+
+    private void cmdNpcList(@NotNull CommandSender sender) {
+        if (npcManager == null) return;
+        var list = npcManager.getNpcs();
+        send(sender, "<gold>━━━ Linked NPCs (" + list.size() + ") ━━━</gold>");
+        if (list.isEmpty()) {
+            send(sender, "<gray>No NPCs linked yet.</gray>");
+            return;
+        }
+        for (var npc : list) {
+            send(sender, "<gray>• <yellow>" + npc.getPlatform().name() + "</yellow> ID: <white>" + npc.getId() + "</white> <gray>Action: <aqua>" + npc.getAction().name() + "</aqua> Course: <white>" + npc.getCourseId() + "</white></gray>");
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Help
     // -----------------------------------------------------------------------
 
@@ -679,6 +972,8 @@ public final class BasicParkourCommand {
             send(sender, "<gray>/" + r + " " + cfg.getCmdGenerate() + " <player> <templateId></gray> — start generated run");
             send(sender, "<gray>/" + r + " " + cfg.getCmdSetEntry() + " <templateId> [portal|interact]</gray> — register entry point");
             send(sender, "<gray>/" + r + " " + cfg.getCmdRemoveEntry() + " <templateId></gray> — remove entry point");
+            send(sender, "<gray>/" + r + " hologram <create|remove|refresh|list></gray> — manage holograms");
+            send(sender, "<gray>/" + r + " npc <link|unlink|topholder|list></gray> — manage NPCs");
         }
     }
 
