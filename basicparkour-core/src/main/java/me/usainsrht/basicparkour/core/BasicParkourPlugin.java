@@ -68,6 +68,7 @@ public final class BasicParkourPlugin extends JavaPlugin {
     private BasicParkourAPIImpl basicParkourAPI;
     private CommandConfig commandConfig;
     private GeneratorManagerImpl generatorManager;
+    private me.usainsrht.basicparkour.core.hotbar.HotbarManager hotbarManager;
     private me.usainsrht.basicparkour.core.tab.TabHook tabHook;
     private me.usainsrht.basicparkour.core.hologram.HologramManager hologramManager;
     private me.usainsrht.basicparkour.core.npc.NpcManager npcManager;
@@ -117,8 +118,10 @@ public final class BasicParkourPlugin extends JavaPlugin {
         // ── 4b. TAB Hook ─────────────────────────────────────────────────────
         tabHook = new me.usainsrht.basicparkour.core.tab.TabHook(this);
 
-        // ── 5. Session manager ───────────────────────────────────────────────
+        // ── 5. Session manager & Hotbar ─────────────────────────────────────
         sessionManager = new SessionManager(this, scheduler, messages);
+        hotbarManager = new me.usainsrht.basicparkour.core.hotbar.HotbarManager(this, sessionManager);
+        sessionManager.setHotbarManager(hotbarManager);
 
         // ── 6. Ghost recorder ────────────────────────────────────────────────
         ghostRecorder = new GhostRecorderImpl(this, scheduler);
@@ -145,7 +148,10 @@ public final class BasicParkourPlugin extends JavaPlugin {
         // ── 10. Listeners ────────────────────────────────────────────────────
         var pm = getServer().getPluginManager();
         pm.registerEvents(new PlayerMoveListener(this, sessionManager), this);
-        pm.registerEvents(new PlayerQuitListener(sessionManager), this);
+        pm.registerEvents(new PlayerQuitListener(this, sessionManager), this);
+        pm.registerEvents(new me.usainsrht.basicparkour.core.listener.ParkourProtectionListener(this, sessionManager), this);
+        pm.registerEvents(new me.usainsrht.basicparkour.core.listener.ParkourRestrictionListener(this, sessionManager), this);
+        pm.registerEvents(hotbarManager, this);
         pm.registerEvents(new me.usainsrht.basicparkour.core.gui.GUIListener(), this);
         pm.registerEvents(new me.usainsrht.basicparkour.core.editor.WandListener(this, editorManager), this);
         // Collision suppression is handled via ParkourTeamManager inside SessionManager
@@ -196,6 +202,8 @@ public final class BasicParkourPlugin extends JavaPlugin {
             generatorManager.shutdown();
         if (sessionManager != null)
             sessionManager.shutdown();
+        if (hotbarManager != null)
+            hotbarManager.restoreAll();
         if (repository != null)
             repository.close();
         BasicParkourAPI.unregister();
@@ -221,6 +229,10 @@ public final class BasicParkourPlugin extends JavaPlugin {
         java.io.File menusFile = new java.io.File(getDataFolder(), "menus.yml");
         if (menusFile.exists()) {
             menuConfig.reload(org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(menusFile));
+        }
+
+        if (hotbarManager != null) {
+            hotbarManager.load();
         }
 
         if (hologramManager != null) {
@@ -316,5 +328,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
 
     public me.usainsrht.basicparkour.core.npc.NpcManager getNpcManager() {
         return npcManager;
+    }
+
+    public me.usainsrht.basicparkour.core.hotbar.HotbarManager getHotbarManager() {
+        return hotbarManager;
     }
 }

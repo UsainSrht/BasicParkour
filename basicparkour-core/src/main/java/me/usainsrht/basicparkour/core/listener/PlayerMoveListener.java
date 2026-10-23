@@ -71,6 +71,14 @@ public final class PlayerMoveListener implements Listener {
 
         ParkourCourse course = session.getCourse();
 
+        // ── 0. Anti-flight check ─────────────────────────────────────────────
+        if (plugin.getConfig().getBoolean("restrictions.disable-flight", true) && player.isFlying()) {
+            player.setAllowFlight(false);
+            player.setFlying(false);
+            sessionManager.failSession(player, ParkourSession.FailReason.VOID);
+            return;
+        }
+
         // ── 1. Void check ────────────────────────────────────────────────────
         double failY = to.getWorld().getMinHeight() - 5;
         if (course.getMinY().isPresent()) {

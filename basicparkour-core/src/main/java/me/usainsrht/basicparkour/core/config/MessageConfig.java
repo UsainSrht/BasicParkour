@@ -42,6 +42,10 @@ public final class MessageConfig {
     private YamlMessage checkpointAdded;
     private YamlMessage courseSaved;
     private YamlMessage ghostToggled;
+    private YamlMessage commandBlocked;
+    private YamlMessage sessionRestarted;
+    private YamlMessage teleportedToCheckpoint;
+    private YamlMessage visibilityToggled;
 
     public MessageConfig(@NotNull ConfigurationSection cfg) {
         reload(cfg);
@@ -93,6 +97,10 @@ public final class MessageConfig {
         checkpointAdded = getMessage("checkpoint-added", "<green>Checkpoint #<index> added to <white><course></white>.</green>");
         courseSaved = getMessage("course-saved", "<green>Course <white><course></white> successfully saved and loaded!</green>");
         ghostToggled = getMessage("ghost-toggled", "<gray>Ghost playback is now: <state>.</gray>");
+        commandBlocked = getMessage("command-blocked", "<red>You cannot use this command while in a parkour session! Use <white>/basicparkour leave</white> to exit.</red>");
+        sessionRestarted = getMessage("session-restarted", "<green>Course restarted from the beginning!</green>");
+        teleportedToCheckpoint = getMessage("teleported-to-checkpoint", "<green>Teleported to last checkpoint!</green>");
+        visibilityToggled = getMessage("visibility-toggled", "<gray>Player visibility set to: <white><mode></white>.</gray>");
     }
 
     private YamlMessage getMessage(@NotNull String key, @NotNull String defaultMiniMessage) {
@@ -134,4 +142,8 @@ public final class MessageConfig {
     public @NotNull YamlMessage getCheckpointAdded() { return checkpointAdded; }
     public @NotNull YamlMessage getCourseSaved() { return courseSaved; }
     public @NotNull YamlMessage getGhostToggled() { return ghostToggled; }
+    public @NotNull YamlMessage getCommandBlocked() { return commandBlocked; }
+    public @NotNull YamlMessage getSessionRestarted() { return sessionRestarted; }
+    public @NotNull YamlMessage getTeleportedToCheckpoint() { return teleportedToCheckpoint; }
+    public @NotNull YamlMessage getVisibilityToggled() { return visibilityToggled; }
 }

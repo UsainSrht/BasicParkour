@@ -123,6 +123,25 @@ public final class BasicParkourCommand {
                     return Command.SINGLE_SUCCESS;
                 }));
 
+        // restart
+        root.then(Commands.literal(cfg.getCmdRestart())
+                .executes(ctx -> {
+                    cmdRestart(ctx.getSource().getSender());
+                    return Command.SINGLE_SUCCESS;
+                }));
+
+        // checkpoint (and alias cp)
+        root.then(Commands.literal(cfg.getCmdCheckpoint())
+                .executes(ctx -> {
+                    cmdCheckpoint(ctx.getSource().getSender());
+                    return Command.SINGLE_SUCCESS;
+                }));
+        root.then(Commands.literal("cp")
+                .executes(ctx -> {
+                    cmdCheckpoint(ctx.getSource().getSender());
+                    return Command.SINGLE_SUCCESS;
+                }));
+
         // top <courseId> [limit]
         root.then(Commands.literal(cfg.getCmdTop())
                 .then(Commands.argument("courseId", StringArgumentType.word())
@@ -544,12 +563,17 @@ public final class BasicParkourCommand {
 
     private void cmdLeave(@NotNull CommandSender sender) {
         if (!(sender instanceof Player player)) return;
-        if (sessionManager.getSession(player).isEmpty()) {
-            plugin.getMessages().getNotInSession().send((net.kyori.adventure.audience.Audience) player);
-            return;
-        }
-        sessionManager.removeSession(player);
-        plugin.getMessages().getSessionLeave().send((net.kyori.adventure.audience.Audience) player);
+        sessionManager.leaveSession(player);
+    }
+
+    private void cmdRestart(@NotNull CommandSender sender) {
+        if (!(sender instanceof Player player)) return;
+        sessionManager.restartSession(player);
+    }
+
+    private void cmdCheckpoint(@NotNull CommandSender sender) {
+        if (!(sender instanceof Player player)) return;
+        sessionManager.teleportToCheckpoint(player);
     }
 
     private void cmdTop(@NotNull CommandSender sender, @NotNull String courseId, int limit) {
@@ -956,6 +980,8 @@ public final class BasicParkourCommand {
         send(sender, "<gray>/" + r + " " + cfg.getCmdGhost() + "</gray> — toggle ghost run display");
         send(sender, "<gray>/" + r + " " + cfg.getCmdJoin() + " <courseId></gray> — join a course");
         send(sender, "<gray>/" + r + " " + cfg.getCmdLeave() + "</gray> — exit current session");
+        send(sender, "<gray>/" + r + " " + cfg.getCmdRestart() + "</gray> — restart active course");
+        send(sender, "<gray>/" + r + " " + cfg.getCmdCheckpoint() + "</gray> — teleport to last checkpoint");
         send(sender, "<gray>/" + r + " " + cfg.getCmdTop() + " <courseId></gray> — view leaderboard");
         send(sender, "<gray>/" + r + " " + cfg.getCmdPb() + " [courseId]</gray> — your personal bests");
         if (sender.hasPermission(cfg.getPermAdmin())) {

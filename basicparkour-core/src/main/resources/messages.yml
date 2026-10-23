@@ -84,3 +84,11 @@ messages:
     chat: "<green>Course <white><course></white> successfully saved and loaded!</green>"
     sound: "entity.experience_orb.pickup,1.0,1.0"
   ghost-toggled: "<gray>Ghost run display is now: <white><state></white>.</gray>"
+  command-blocked: "<red>You cannot use this command while in a parkour session! Use <white>/basicparkour leave</white> to exit.</red>"
+  session-restarted:
+    actionbar: "<green>Course restarted from the beginning!</green>"
+    sound: "block.note_block.harp,1.0,1.5"
+  teleported-to-checkpoint:
+    actionbar: "<green>Teleported to last checkpoint!</green>"
+    sound: "entity.enderman.teleport,0.8,1.2"
+  visibility-toggled: "<gray>Player visibility set to: <white><mode></white>.</gray>"

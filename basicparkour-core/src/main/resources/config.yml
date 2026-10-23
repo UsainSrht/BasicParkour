@@ -1,6 +1,26 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Basic Parkour Plugin — Global Configuration
 # ─────────────────────────────────────────────────────────────────────────────
+#
+# QUICK PRESET GUIDE:
+# 
+# [Profile A: Server Feature (DEFAULT)]
+#   Best for: SMP, Skyblock, Factions, Survival, Towny, Hub/Lobby minigame.
+#   • Players see each other normally (visibility.default: ALL).
+#   • Full player protection (zero fall damage, no inventory drop, no hunger drain).
+#   • Anti-cheat enabled (disables /fly, Elytra gliding, Ender Pearls, /home, /tp).
+#   • Clean exit: /pk leave teleports players back to where they started.
+#   • TAB nametags/prefixes from other plugins are untouched (pause-team-handling: false).
+#   • Ghost replays and hotbar items disabled by default for clean survival gameplay.
+#
+# [Profile B: Dedicated Parkour Server Setup]
+#   To transform into a full, dedicated Parkour network/sub-server:
+#   1. Set `hotbar-items.enabled: true` (gives players Restart, Checkpoint, Visibility, Leave items).
+#   2. Set `visibility.default: TRANSLUCENT` or `NONE` (prevents 50 players blocking view on 1 block).
+#   3. Set `ghost.enabled: true` and `ghost.playback.enabled: true` (enables 20fps ghost replay bots).
+#   4. Set `tab.pause-team-handling: true` (prioritizes parkour translucent teams).
+#   5. Optional: Set `restrictions.force-gamemode: ADVENTURE`.
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Storage backend.
 # Options: memory | sqlite | mysql
@@ -19,11 +39,145 @@ storage:
 
 # ─── Visibility ───────────────────────────────────────────────────────────────
 visibility:
-  # Default visibility mode for players in active sessions.
-  # Options: ALL | NONE | TRANSLUCENT
-  # TRANSLUCENT: players appear as semi-transparent ghosts via scoreboard teams and invisibility.
-  # FRIENDS mode requires a FriendsProvider SPI implementation.
-  default: TRANSLUCENT
+  # Default visibility mode for players in active parkour sessions.
+  # Options:
+  #   ALL         - Players see everyone normally (Recommended for SMP/Skyblock/Factions).
+  #   TRANSLUCENT - Other players appear as semi-transparent ghosts via scoreboard teams and invisibility.
+  #   NONE        - Other parkour players are completely hidden from view.
+  # Note: Players can also cycle their visibility with /pk visibility or the hotbar item.
+  default: ALL
+
+# ─── Session & Teleportation ──────────────────────────────────────────────────
+session:
+  # When true, typing /basicparkour leave teleports the player back to their exact location
+  # where they were before starting the course. Essential for SMP/Skyblock!
+  teleport-on-leave: true
+
+  # Where to teleport players when they complete a course.
+  # Options: NONE | JOIN_LOCATION | START_LOCATION
+  #   NONE           - Player stays at the finish line / end platform.
+  #   JOIN_LOCATION  - Teleports player back to where they originally joined from.
+  #   START_LOCATION - Teleports player back to the course start.
+  teleport-on-complete: NONE
+
+  # When true, if a player is teleported away by another plugin or command (e.g. /home, /spawn, /tpa),
+  # their active parkour session is cleanly ended instead of running in the background.
+  cancel-on-external-teleport: true
+
+# ─── Protections (Survival Safety) ───────────────────────────────────────────
+# Crucial for SMP, Skyblock, and Factions so players do not die, lose items, or grief courses.
+protections:
+  # Prevents fall damage while in an active parkour session.
+  prevent-fall-damage: true
+
+  # When true, taking fall damage (e.g. falling off a high jump onto the ground)
+  # instantly fails and respawns the player at their last checkpoint with 0 damage taken.
+  fall-damage-fails-session: true
+
+  # Prevents all other damage (PvP, mobs, fire, lava, drowning, suffocation, lightning) while doing parkour.
+  prevent-damage: true
+
+  # Prevents players from attacking mobs or other players during a session.
+  prevent-pvp: true
+
+  # Prevents hunger depletion so players can always sprint freely.
+  prevent-hunger: true
+
+  # Prevents breaking blocks during parkour.
+  prevent-block-break: true
+
+  # Prevents placing blocks (e.g. placing dirt/blocks to cheat jumps or water buckets).
+  prevent-block-place: true
+
+  # Prevents accidentally dropping items from the inventory while playing parkour.
+  prevent-item-drop: true
+
+  # Prevents picking up dropped items from the ground while in a session.
+  prevent-item-pickup: true
+
+# ─── Restrictions & Anti-Cheat ────────────────────────────────────────────────
+restrictions:
+  # Disables flying (/fly, creative flight, Essentials fly) during parkour.
+  disable-flight: true
+
+  # Disables Elytra gliding to prevent gliding straight to checkpoints or finish.
+  disable-elytra: true
+
+  # Prevents throwing Ender Pearls or eating Chorus Fruit during parkour.
+  disable-ender-pearls: true
+
+  # Enforces a specific gamemode during parkour, restored automatically upon exit.
+  # Options: NONE | ADVENTURE | SURVIVAL
+  force-gamemode: NONE
+
+  # Controls command usage while in a parkour session.
+  commands:
+    # Mode: WHITELIST | BLACKLIST | DISABLED
+    #   WHITELIST - Only commands in the whitelist below are allowed.
+    #   BLACKLIST - All commands are allowed EXCEPT commands in the blacklist.
+    #   DISABLED  - No command restrictions.
+    mode: WHITELIST
+
+    # Commands allowed when mode is WHITELIST (do not include leading slash):
+    whitelist:
+      - basicparkour
+      - pk
+      - parkour
+      - cp
+      - msg
+      - tell
+      - w
+      - r
+
+    # Commands blocked when mode is BLACKLIST:
+    blacklist:
+      - home
+      - sethome
+      - tp
+      - tpa
+      - tpahere
+      - spawn
+      - warp
+      - fly
+      - god
+      - back
+
+# ─── Hotbar Utility Items ─────────────────────────────────────────────────────
+# Hotbar utility items given to players during parkour (Restart, Checkpoint, Visibility, Leave).
+# By default disabled for SMP/Survival so players keep their normal items.
+# Enable this for dedicated parkour servers!
+hotbar-items:
+  enabled: false
+
+  # When true, player inventories (contents, armor, offhand) are safely saved before giving
+  # hotbar items, and restored when leaving, completing, or failing parkour.
+  save-inventory: true
+
+  items:
+    restart:
+      slot: 0
+      material: REPEATER
+      custom_name: "<yellow><b>Restart Course</b></yellow>"
+      lore:
+        - "<gray>Right-click to restart from the beginning</gray>"
+    checkpoint:
+      slot: 1
+      material: ARROW
+      custom_name: "<green><b>Last Checkpoint</b></green>"
+      lore:
+        - "<gray>Right-click to return to your last checkpoint</gray>"
+    visibility:
+      slot: 7
+      material: EYE_OF_ENDER
+      custom_name: "<aqua><b>Toggle Visibility</b></aqua>"
+      lore:
+        - "<gray>Right-click to cycle player visibility (All / Ghosts / Hidden)</gray>"
+    leave:
+      slot: 8
+      material: RED_BED
+      custom_name: "<red><b>Leave Course</b></red>"
+      lore:
+        - "<gray>Right-click to exit parkour</gray>"
 
 # ─── TAB Plugin Integration ───────────────────────────────────────────────────
 tab:
@@ -33,8 +187,29 @@ tab:
   disable-collision: true
   # Whether to hide player nametags while in a parkour session.
   hide-nametag: false
-  # Pause TAB team handling during parkour so dedicated translucent teams are not overwritten.
-  pause-team-handling: true
+  # Pause TAB team handling during parkour.
+  # FALSE: Recommended for SMP so player rank prefixes and tags remain visible.
+  # TRUE: Recommended for dedicated parkour servers using translucent ghost teams.
+  pause-team-handling: false
+
+# ─── Ghost system ─────────────────────────────────────────────────────────────
+ghost:
+  # Whether the ghost recording system is enabled.
+  # For SMP/Skyblock with a simple spawn parkour, set to false for maximum performance.
+  # For dedicated parkour servers, set to true to record player runs.
+  enabled: false
+  # How often to capture a position frame (milliseconds). 50ms = 20fps.
+  record-interval-ms: 50
+  # Maximum number of frames to store per recording.
+  # 12000 frames at 50ms = 600 seconds = 10 minutes max recording length.
+  max-frames: 12000
+  playback:
+    # Whether to spawn replay ghosts during runs.
+    enabled: false
+    # Mode: SERVER_BEST | PERSONAL_BEST
+    mode: SERVER_BEST
+    # Whether the replay ghost is rendered as a translucent entity on the parkour team.
+    translucent: true
 
 # ─── Hologram System ──────────────────────────────────────────────────────────
 hologram:
@@ -53,22 +228,6 @@ timer:
   # How often to update the action bar timer (in ticks, 1 = every tick).
   display-interval-ticks: 1
 
-# ─── Ghost system ─────────────────────────────────────────────────────────────
-ghost:
-  # Whether the ghost recording system is enabled.
-  enabled: true
-  # How often to capture a position frame (milliseconds). 50ms = 20fps.
-  record-interval-ms: 50
-  # Maximum number of frames to store per recording.
-  # 12000 frames at 50ms = 600 seconds = 10 minutes max recording length.
-  max-frames: 12000
-  playback:
-    enabled: true
-    # Mode: SERVER_BEST | PERSONAL_BEST
-    mode: SERVER_BEST
-    # Whether the replay ghost is rendered as a translucent entity on the parkour team.
-    translucent: true
-
 # ─── Commands ─────────────────────────────────────────────────────────────────
 # All command literals and permission nodes are fully customisable here.
 # Changes take effect after a server restart (commands are registered at boot).
@@ -81,7 +240,7 @@ commands:
     - parkour
   # Permission nodes checked at command execution time.
   permissions:
-    # Required for join / leave / top / pb sub-commands.
+    # Required for join / leave / restart / checkpoint / top / pb sub-commands.
     use: basicparkour.use
     # Required for reload / resetpb sub-commands.
     admin: basicparkour.admin
@@ -91,6 +250,8 @@ commands:
     ghost: ghost
     join: join
     leave: leave
+    restart: restart
+    checkpoint: checkpoint
     top: top
     pb: pb
     reload: reload
@@ -123,11 +284,9 @@ editor:
 # Controls the dynamic parkour generator system.
 generator:
   # The leaderboard course ID shared by all generated runs.
-  # All generated times appear under this single "course" in the leaderboard.
   leaderboard-id: "__generated__"
 
   # How many seconds to wait after a generated session ends before removing blocks.
-  # Can be overridden per template in generators/*.yml
   default-cleanup-delay-seconds: 30
 
   # Extra clearance (blocks) added between allocated dedicated-world slots.
@@ -176,5 +335,4 @@ generator:
       modifier-chance: 0.18
 
   # Entry points registered via /basicparkour setentry.
-  # Managed automatically — do not edit by hand unless you know what you are doing.
   entry-points: {}

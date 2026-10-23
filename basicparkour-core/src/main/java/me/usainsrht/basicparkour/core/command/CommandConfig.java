@@ -40,6 +40,8 @@ public final class CommandConfig {
     private final String cmdSetPortal;
     private final String cmdAddCp;
     private final String cmdSave;
+    private final String cmdRestart;
+    private final String cmdCheckpoint;
 
     public CommandConfig(@NotNull FileConfiguration cfg) {
         ConfigurationSection sec = cfg.getConfigurationSection("commands");
@@ -68,6 +70,8 @@ public final class CommandConfig {
             cmdSetPortal   = "setportal";
             cmdAddCp       = "addcp";
             cmdSave        = "save";
+            cmdRestart     = "restart";
+            cmdCheckpoint  = "checkpoint";
             return;
         }
 
@@ -96,6 +100,8 @@ public final class CommandConfig {
             cmdSetPortal   = sub.getString("setportal",    "setportal");
             cmdAddCp       = sub.getString("addcp",        "addcp");
             cmdSave        = sub.getString("save",         "save");
+            cmdRestart     = sub.getString("restart",      "restart");
+            cmdCheckpoint  = sub.getString("checkpoint",   "checkpoint");
         } else {
             cmdJoin        = "join";
             cmdLeave       = "leave";
@@ -115,6 +121,8 @@ public final class CommandConfig {
             cmdSetPortal   = "setportal";
             cmdAddCp       = "addcp";
             cmdSave        = "save";
+            cmdRestart     = "restart";
+            cmdCheckpoint  = "checkpoint";
         }
     }
 
@@ -150,4 +158,6 @@ public final class CommandConfig {
     public @NotNull String getCmdSetPortal()    { return cmdSetPortal; }
     public @NotNull String getCmdAddCp()        { return cmdAddCp; }
     public @NotNull String getCmdSave()         { return cmdSave; }
+    public @NotNull String getCmdRestart()      { return cmdRestart; }
+    public @NotNull String getCmdCheckpoint()   { return cmdCheckpoint; }
 }

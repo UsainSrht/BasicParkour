@@ -15,10 +15,12 @@ import me.usainsrht.basicparkour.core.BasicParkourPlugin;
 import me.usainsrht.basicparkour.core.config.MessageConfig;
 import me.usainsrht.basicparkour.core.scheduling.FoliaScheduler;
 import me.usainsrht.basicparkour.core.util.TimerFormatter;
+import me.usainsrht.basicparkour.core.hotbar.HotbarManager;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.Location;
 import org.jetbrains.annotations.NotNull;
@@ -26,7 +28,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -57,6 +61,27 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
 
     /** Global timer display task handle. */
     private FoliaScheduler.RepeatingTask timerTask;
+
+    /** Hotbar manager for utility items (Restart, Checkpoint, Visibility, Leave). */
+    private HotbarManager hotbarManager;
+
+    /** Set of player UUIDs currently executing an internal plugin teleport. */
+    private final Set<UUID> internalTeleports = ConcurrentHashMap.newKeySet();
+
+    /** Saved player flight states prior to starting parkour. */
+    private final Map<UUID, Boolean> previousAllowFlight = new ConcurrentHashMap<>();
+
+    /** Saved player food levels prior to starting parkour. */
+    private final Map<UUID, Integer> previousFoodLevel = new ConcurrentHashMap<>();
+
+    /** Saved player saturation levels prior to starting parkour. */
+    private final Map<UUID, Float> previousSaturation = new ConcurrentHashMap<>();
+
+    /** Saved player gamemodes prior to starting parkour. */
+    private final Map<UUID, GameMode> previousGameMode = new ConcurrentHashMap<>();
+
+    /** Per-player visibility preferences. */
+    private final Map<UUID, String> playerVisibilityModes = new ConcurrentHashMap<>();
 
     public SessionManager(@NotNull BasicParkourPlugin plugin,
                            @NotNull FoliaScheduler scheduler,
@@ -118,6 +143,36 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         ParkourSessionImpl session = new ParkourSessionImpl(player, player.getLocation().clone(), course, this);
         sessions.put(player.getUniqueId(), session);
 
+        // Flight restrictions
+        if (plugin.getConfig().getBoolean("restrictions.disable-flight", true)) {
+            previousAllowFlight.put(player.getUniqueId(), player.getAllowFlight());
+            player.setAllowFlight(false);
+            player.setFlying(false);
+        }
+
+        // Hunger freeze / full sprint
+        if (plugin.getConfig().getBoolean("protections.prevent-hunger", true)) {
+            previousFoodLevel.put(player.getUniqueId(), player.getFoodLevel());
+            previousSaturation.put(player.getUniqueId(), player.getSaturation());
+            player.setFoodLevel(20);
+            player.setSaturation(20f);
+        }
+
+        // Gamemode enforcement
+        String forceGm = plugin.getConfig().getString("restrictions.force-gamemode", "NONE").toUpperCase(java.util.Locale.ROOT);
+        if (!forceGm.equals("NONE")) {
+            try {
+                GameMode gm = GameMode.valueOf(forceGm);
+                previousGameMode.put(player.getUniqueId(), player.getGameMode());
+                player.setGameMode(gm);
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        // Hotbar items
+        if (hotbarManager != null) {
+            hotbarManager.onSessionStart(player);
+        }
+
         // Teleport to start if requested and configured
         if (shouldTeleport) {
             Location startLoc = null;
@@ -131,7 +186,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
 
             if (startLoc != null) {
                 final Location finalStart = startLoc;
-                scheduler.runOnEntity(player, () -> player.teleportAsync(finalStart));
+                markInternalTeleport(player.getUniqueId());
+                scheduler.runOnEntity(player, () ->
+                    player.teleportAsync(finalStart).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
             }
         }
 
@@ -147,7 +204,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         applyVisibility(player);
 
         // Start ghost recording if enabled
-        if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
+        if (plugin.getConfig().getBoolean("ghost.enabled", false)) {
             plugin.getGhostRecorder().startRecording(player);
         }
 
@@ -234,6 +291,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         long elapsed = session.getElapsedMillis();
         sessions.remove(player.getUniqueId());
 
+        // Restore player survival state (flight, hunger, gamemode, inventory)
+        restorePlayerState(player);
+
         // TAB hook restore
         if (plugin.getTabHook() != null) {
             plugin.getTabHook().onPlayerLeaveSession(player);
@@ -251,13 +311,36 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         }
 
         // Stop ghost recording
-        if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
+        if (plugin.getConfig().getBoolean("ghost.enabled", false)) {
             plugin.getGhostRecorder()
                 .saveRecording(player, session.getCourse().getId(), elapsed)
                 .exceptionally(ex -> {
                     plugin.getLogger().log(Level.WARNING, "Failed to save ghost recording", ex);
                     return null;
                 });
+        }
+
+        // Teleport on completion if configured (e.g. JOIN_LOCATION or START_LOCATION)
+        String tpOnComplete = plugin.getConfig().getString("session.teleport-on-complete", "NONE").toUpperCase(java.util.Locale.ROOT);
+        if (tpOnComplete.equals("JOIN_LOCATION")) {
+            Location joinLoc = session.getJoinLocation();
+            markInternalTeleport(player.getUniqueId());
+            scheduler.runOnEntity(player, () ->
+                player.teleportAsync(joinLoc).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
+        } else if (tpOnComplete.equals("START_LOCATION")) {
+            Location startLoc = null;
+            if (!session.getCourse().getStartLocations().isEmpty()) {
+                var locs = session.getCourse().getStartLocations();
+                startLoc = locs.get(new java.util.Random().nextInt(locs.size()));
+            } else if (!(session.getCourse() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse)) {
+                startLoc = session.getCourse().getStartRegion().getCenter();
+            }
+            if (startLoc != null) {
+                final Location finalStart = startLoc;
+                markInternalTeleport(player.getUniqueId());
+                scheduler.runOnEntity(player, () ->
+                    player.teleportAsync(finalStart).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
+            }
         }
 
         // Save record asynchronously, then fire event back on main thread
@@ -330,6 +413,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         Location respawnLoc;
         if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE) {
             respawnLoc = session.getJoinLocation();
+            restorePlayerState(player);
         } else {
             // Determine respawn location: last checkpoint or start center
             respawnLoc = session.getLastCheckpoint()
@@ -350,8 +434,11 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         Bukkit.getPluginManager().callEvent(new SessionFailEvent(player, session, reason));
 
         // Instant respawn via entity scheduler
+        markInternalTeleport(player.getUniqueId());
         scheduler.runOnEntity(player, () -> {
             player.teleportAsync(respawnLoc).thenRun(() -> {
+                clearInternalTeleport(player.getUniqueId());
+
                 // Show fail message via YamlMessage
                 messages.send(messages.getSessionFail(), player,
                     Placeholder.component("course", session.getCourse().getDisplayName()));
@@ -373,7 +460,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                     }
                     teamManager.removePlayer(player);
                     restoreVisibility(player);
-                    if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
+                    if (plugin.getConfig().getBoolean("ghost.enabled", false)) {
                         plugin.getGhostRecorder().discardRecording(player);
                     }
                     if (plugin.getGeneratorManager() != null) {
@@ -394,17 +481,181 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         ParkourSessionImpl session = sessions.remove(player.getUniqueId());
         if (session != null) {
             session.tryInvalidate();
+            restorePlayerState(player);
             if (plugin.getTabHook() != null) {
                 plugin.getTabHook().onPlayerLeaveSession(player);
             }
             teamManager.removePlayer(player);
             restoreVisibility(player);
-            if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
+            if (plugin.getConfig().getBoolean("ghost.enabled", false)) {
                 plugin.getGhostRecorder().discardRecording(player);
             }
             if (plugin.getGeneratorManager() != null) {
                 plugin.getGeneratorManager().onSessionEnd(player);
             }
+        }
+    }
+
+    /**
+     * Called when a player executes /basicparkour leave or right-clicks the Leave hotbar item.
+     * Ends the session cleanly and teleports the player back to where they started if configured.
+     */
+    public void leaveSession(@NotNull Player player) {
+        ParkourSessionImpl session = sessions.get(player.getUniqueId());
+        if (session == null) {
+            messages.send(messages.getNotInSession(), player);
+            return;
+        }
+        Location joinLoc = session.getJoinLocation();
+        removeSession(player);
+        messages.send(messages.getSessionLeave(), player);
+
+        if (plugin.getConfig().getBoolean("session.teleport-on-leave", true)) {
+            markInternalTeleport(player.getUniqueId());
+            scheduler.runOnEntity(player, () ->
+                player.teleportAsync(joinLoc).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
+        }
+    }
+
+    /**
+     * Restarts the player's active session from the beginning.
+     */
+    public void restartSession(@NotNull Player player) {
+        ParkourSessionImpl session = sessions.get(player.getUniqueId());
+        if (session == null) {
+            messages.send(messages.getNotInSession(), player);
+            return;
+        }
+        ParkourCourse course = session.getCourse();
+        Location joinLoc = session.getJoinLocation();
+
+        session.tryInvalidate();
+        sessions.remove(player.getUniqueId());
+        if (plugin.getConfig().getBoolean("ghost.enabled", false)) {
+            plugin.getGhostRecorder().discardRecording(player);
+        }
+
+        // Fresh session on the same course
+        ParkourSessionImpl newSession = new ParkourSessionImpl(player, joinLoc, course, this);
+        sessions.put(player.getUniqueId(), newSession);
+
+        if (plugin.getConfig().getBoolean("ghost.enabled", false)) {
+            plugin.getGhostRecorder().startRecording(player);
+        }
+
+        messages.send(messages.getSessionRestarted(), player,
+            Placeholder.component("course", course.getDisplayName()));
+
+        Location startLoc = null;
+        if (!course.getStartLocations().isEmpty()) {
+            var locs = course.getStartLocations();
+            startLoc = locs.get(new java.util.Random().nextInt(locs.size()));
+        } else if (!(course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse)) {
+            startLoc = course.getStartRegion().getCenter();
+        }
+
+        if (startLoc != null) {
+            final Location finalStart = startLoc;
+            markInternalTeleport(player.getUniqueId());
+            scheduler.runOnEntity(player, () ->
+                player.teleportAsync(finalStart).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
+        }
+    }
+
+    /**
+     * Teleports the player back to their last checkpoint (or start).
+     */
+    public void teleportToCheckpoint(@NotNull Player player) {
+        ParkourSessionImpl session = sessions.get(player.getUniqueId());
+        if (session == null) {
+            messages.send(messages.getNotInSession(), player);
+            return;
+        }
+        Location targetLoc = session.getLastCheckpoint()
+            .map(Checkpoint::getSpawnLocation)
+            .orElseGet(() -> {
+                if (!session.getCourse().getStartLocations().isEmpty()) {
+                    var locs = session.getCourse().getStartLocations();
+                    return locs.get(new java.util.Random().nextInt(locs.size()));
+                }
+                return session.getCourse().getStartRegion().getCenter();
+            });
+
+        messages.send(messages.getTeleportedToCheckpoint(), player);
+        markInternalTeleport(player.getUniqueId());
+        scheduler.runOnEntity(player, () ->
+            player.teleportAsync(targetLoc).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
+    }
+
+    /**
+     * Cycles the player's visibility mode between ALL -> TRANSLUCENT -> NONE -> ALL.
+     */
+    public @NotNull String cycleVisibility(@NotNull Player player) {
+        String current = getVisibilityMode(player);
+        String next = switch (current) {
+            case "ALL" -> "TRANSLUCENT";
+            case "TRANSLUCENT" -> "NONE";
+            default -> "ALL";
+        };
+        setVisibilityMode(player, next);
+        applyVisibility(player);
+        messages.send(messages.getVisibilityToggled(), player,
+            Placeholder.parsed("mode", next));
+        return next;
+    }
+
+    public @NotNull String getVisibilityMode(@NotNull Player player) {
+        return playerVisibilityModes.computeIfAbsent(player.getUniqueId(),
+            u -> plugin.getConfig().getString("visibility.default", "ALL").toUpperCase(java.util.Locale.ROOT));
+    }
+
+    public void setVisibilityMode(@NotNull Player player, @NotNull String mode) {
+        playerVisibilityModes.put(player.getUniqueId(), mode.toUpperCase(java.util.Locale.ROOT));
+    }
+
+    public boolean isInternalTeleport(@NotNull UUID uuid) {
+        return internalTeleports.contains(uuid);
+    }
+
+    public void markInternalTeleport(@NotNull UUID uuid) {
+        internalTeleports.add(uuid);
+    }
+
+    public void clearInternalTeleport(@NotNull UUID uuid) {
+        internalTeleports.remove(uuid);
+    }
+
+    public void setHotbarManager(@Nullable HotbarManager hotbarManager) {
+        this.hotbarManager = hotbarManager;
+    }
+
+    public @Nullable HotbarManager getHotbarManager() {
+        return hotbarManager;
+    }
+
+    private void restorePlayerState(@NotNull Player player) {
+        Boolean prevFlight = previousAllowFlight.remove(player.getUniqueId());
+        if (prevFlight != null) {
+            player.setAllowFlight(prevFlight);
+        }
+
+        Integer prevFood = previousFoodLevel.remove(player.getUniqueId());
+        if (prevFood != null) {
+            player.setFoodLevel(prevFood);
+        }
+
+        Float prevSat = previousSaturation.remove(player.getUniqueId());
+        if (prevSat != null) {
+            player.setSaturation(prevSat);
+        }
+
+        GameMode prevGm = previousGameMode.remove(player.getUniqueId());
+        if (prevGm != null) {
+            player.setGameMode(prevGm);
+        }
+
+        if (hotbarManager != null) {
+            hotbarManager.onSessionEnd(player);
         }
     }
 
@@ -429,13 +680,15 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     // -----------------------------------------------------------------------
 
     private void applyVisibility(@NotNull Player newPlayer) {
-        String mode = plugin.getConfig().getString("visibility.default", "ALL").toUpperCase(java.util.Locale.ROOT);
+        String mode = getVisibilityMode(newPlayer);
         if (mode.equals("TRANSLUCENT")) {
             newPlayer.addPotionEffect(new org.bukkit.potion.PotionEffect(
                 org.bukkit.potion.PotionEffectType.INVISIBILITY,
                 org.bukkit.potion.PotionEffect.INFINITE_DURATION,
                 0, false, false, false
             ));
+        } else {
+            newPlayer.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
         }
 
         for (ParkourSessionImpl other : sessions.values()) {
@@ -460,6 +713,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
 
     private void restoreVisibility(@NotNull Player leavingPlayer) {
         leavingPlayer.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
+        playerVisibilityModes.remove(leavingPlayer.getUniqueId());
         for (Player online : Bukkit.getOnlinePlayers()) {
             online.showPlayer(plugin, leavingPlayer);
             leavingPlayer.showPlayer(plugin, online);
