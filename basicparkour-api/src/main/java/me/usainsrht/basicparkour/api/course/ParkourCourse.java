@@ -10,6 +10,8 @@ import org.jetbrains.annotations.Unmodifiable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import org.bukkit.Location;
 
 /**
  * Represents an immutable definition of a parkour course.
@@ -62,6 +64,67 @@ public interface ParkourCourse {
      */
     @NotNull
     CourseRegion getEndRegion();
+
+    /**
+     * A list of custom start locations for this course.
+     * When a player joins, they are teleported to a random location in this list.
+     * If the list is empty, a fallback location is used.
+     *
+     * @return immutable list of start locations
+     */
+    @NotNull
+    @Unmodifiable
+    List<Location> getStartLocations();
+
+    /**
+     * An optional portal bounding box. Walking into this box will start the course.
+     *
+     * @return the portal region, or empty if not configured
+     */
+    @NotNull
+    Optional<CourseRegion> getPortalRegion();
+
+    /**
+     * Whether joining the course through the portal region automatically teleports
+     * the player to the course's start location.
+     *
+     * @return true if the player should be teleported
+     */
+    boolean isPortalTeleport();
+
+    /**
+     * The list of blocks used for blacklist or whitelist modes.
+     *
+     * @return immutable set of materials
+     */
+    @NotNull
+    @Unmodifiable
+    Set<Material> getBlockList();
+
+    /**
+     * The blocklist mode (BLACKLIST or WHITELIST).
+     *
+     * @return the blocklist mode
+     */
+    @NotNull
+    BlockListMode getBlockListMode();
+
+    /**
+     * The minimum Y coordinate before a player is considered to have fallen out
+     * of the course, failing the session.
+     *
+     * @return the minimum Y level, or empty if disabled
+     */
+    @NotNull
+    Optional<Integer> getMinY();
+
+    /**
+     * The die mode (how failures are handled).
+     *
+     * @return the die mode
+     */
+    @NotNull
+    DieMode getDieMode();
 
     /**
      * An ordered list of checkpoints on this course.

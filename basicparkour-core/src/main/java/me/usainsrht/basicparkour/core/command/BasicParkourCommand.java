@@ -4,7 +4,6 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import me.usainsrht.basicparkour.api.BasicParkourAPI;
@@ -12,20 +11,23 @@ import me.usainsrht.basicparkour.api.course.ParkourCourse;
 import me.usainsrht.basicparkour.api.generator.GeneratorTemplate;
 import me.usainsrht.basicparkour.api.storage.LeaderboardEntry;
 import me.usainsrht.basicparkour.core.BasicParkourPlugin;
+import me.usainsrht.basicparkour.core.editor.EditorManager;
 import me.usainsrht.basicparkour.core.generator.GeneratorManagerImpl;
+import me.usainsrht.basicparkour.core.gui.CourseSelectorGUI;
 import me.usainsrht.basicparkour.core.listener.GeneratorEntryListener;
 import me.usainsrht.basicparkour.core.session.SessionManager;
 import me.usainsrht.basicparkour.core.util.TimerFormatter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,23 +35,6 @@ import java.util.UUID;
 /**
  * Registers all {@code /basicparkour} (and configured aliases) sub-commands via
  * the Paper Brigadier command API.
- *
- * <h2>Sub-commands</h2>
- * <ul>
- *   <li>{@code join <courseId>} — manually join a premade course</li>
- *   <li>{@code leave} — exit active session</li>
- *   <li>{@code top <courseId> [limit]} — show leaderboard</li>
- *   <li>{@code pb [courseId]} — show personal best(s)</li>
- *   <li>{@code reload} — reload config and courses (admin)</li>
- *   <li>{@code resetpb <player>} — reset player records (admin)</li>
- *   <li>{@code generate <player> <templateId>} — start a generated run for a player (admin)</li>
- *   <li>{@code setentry <templateId> [portal|interact]} — register an entry point (admin)</li>
- *   <li>{@code removeentry <templateId>} — remove an entry point (admin)</li>
- * </ul>
- *
- * <p>All command literals, aliases, and permission nodes are loaded from
- * {@link CommandConfig} which mirrors the {@code commands:} section of
- * {@code config.yml}.</p>
  */
 @SuppressWarnings({"UnstableApiUsage", "deprecation"})
 public final class BasicParkourCommand {
@@ -61,6 +46,7 @@ public final class BasicParkourCommand {
     private final CommandConfig cfg;
     private GeneratorManagerImpl generatorManager;
     private GeneratorEntryListener entryListener;
+    private EditorManager editorManager;
 
     public BasicParkourCommand(@NotNull BasicParkourPlugin plugin,
                                 @NotNull SessionManager sessionManager,
@@ -70,25 +56,41 @@ public final class BasicParkourCommand {
         this.cfg = cfg;
     }
 
+    public void setEditorManager(@NotNull EditorManager editorManager) {
+        this.editorManager = editorManager;
+    }
+
     // -----------------------------------------------------------------------
     // Registration
     // -----------------------------------------------------------------------
 
-    /**
-     * Builds and registers the root command + all sub-commands with the given
-     * Paper {@link Commands} registrar.
-     *
-     * @param registrar the Brigadier command registrar provided by
-     *                  {@link io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents#COMMANDS}
-     */
     public void register(@NotNull Commands registrar) {
         LiteralArgumentBuilder<CommandSourceStack> root =
                 Commands.literal(cfg.getRoot())
                         .requires(src -> src.getSender().hasPermission(cfg.getPermUse()))
                         .executes(ctx -> {
-                            sendHelp(ctx.getSource().getSender());
+                            CommandSender sender = ctx.getSource().getSender();
+                            if (sender instanceof Player player) {
+                                new CourseSelectorGUI(plugin, player).open();
+                            } else {
+                                sendHelp(sender);
+                            }
                             return Command.SINGLE_SUCCESS;
                         });
+
+        // menu
+        root.then(Commands.literal(cfg.getCmdMenu())
+                .executes(ctx -> {
+                    cmdMenu(ctx.getSource().getSender());
+                    return Command.SINGLE_SUCCESS;
+                }));
+
+        // ghost
+        root.then(Commands.literal(cfg.getCmdGhost())
+                .executes(ctx -> {
+                    cmdGhost(ctx.getSource().getSender());
+                    return Command.SINGLE_SUCCESS;
+                }));
 
         // join <courseId>
         root.then(Commands.literal(cfg.getCmdJoin())
@@ -125,12 +127,12 @@ public final class BasicParkourCommand {
                             return Command.SINGLE_SUCCESS;
                         })
                         .then(Commands.argument("limit", IntegerArgumentType.integer(1, 50))
-                                .executes(ctx -> {
-                                    String courseId = StringArgumentType.getString(ctx, "courseId");
-                                    int limit = IntegerArgumentType.getInteger(ctx, "limit");
-                                    cmdTop(ctx.getSource().getSender(), courseId, limit);
-                                    return Command.SINGLE_SUCCESS;
-                                }))));
+                                 .executes(ctx -> {
+                                     String courseId = StringArgumentType.getString(ctx, "courseId");
+                                     int limit = IntegerArgumentType.getInteger(ctx, "limit");
+                                     cmdTop(ctx.getSource().getSender(), courseId, limit);
+                                     return Command.SINGLE_SUCCESS;
+                                 }))));
 
         // pb [courseId]
         root.then(Commands.literal(cfg.getCmdPb())
@@ -150,7 +152,7 @@ public final class BasicParkourCommand {
                             return Command.SINGLE_SUCCESS;
                         })));
 
-        // reload  (admin)
+        // reload (admin)
         root.then(Commands.literal(cfg.getCmdReload())
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .executes(ctx -> {
@@ -158,7 +160,7 @@ public final class BasicParkourCommand {
                     return Command.SINGLE_SUCCESS;
                 }));
 
-        // resetpb <player>  (admin)
+        // resetpb <player> (admin)
         root.then(Commands.literal(cfg.getCmdResetPb())
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("player", StringArgumentType.word())
@@ -172,7 +174,7 @@ public final class BasicParkourCommand {
                             return Command.SINGLE_SUCCESS;
                         })));
 
-        // generate <player> <templateId>  (admin)
+        // generate <player> <templateId> (admin)
         root.then(Commands.literal(cfg.getCmdGenerate())
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("player", StringArgumentType.word())
@@ -193,7 +195,7 @@ public final class BasicParkourCommand {
                                     return Command.SINGLE_SUCCESS;
                                 }))));
 
-        // setentry <templateId> [portal|interact]  (admin)
+        // setentry <templateId> [portal|interact] (admin)
         root.then(Commands.literal(cfg.getCmdSetEntry())
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("templateId", StringArgumentType.word())
@@ -220,7 +222,7 @@ public final class BasicParkourCommand {
                                     return Command.SINGLE_SUCCESS;
                                 }))));
 
-        // removeentry <templateId>  (admin)
+        // removeentry <templateId> (admin)
         root.then(Commands.literal(cfg.getCmdRemoveEntry())
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("templateId", StringArgumentType.word())
@@ -235,7 +237,97 @@ public final class BasicParkourCommand {
                             return Command.SINGLE_SUCCESS;
                         })));
 
-        // Register the root node with all configured aliases
+        // wand (admin)
+        root.then(Commands.literal(cfg.getCmdWand())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .executes(ctx -> {
+                    cmdWand(ctx.getSource().getSender());
+                    return Command.SINGLE_SUCCESS;
+                }));
+
+        // create <id> <name> (admin)
+        root.then(Commands.literal(cfg.getCmdCreate())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("name", StringArgumentType.greedyString())
+                                .executes(ctx -> {
+                                    String id = StringArgumentType.getString(ctx, "id");
+                                    String name = StringArgumentType.getString(ctx, "name");
+                                    cmdCreate(ctx.getSource().getSender(), id, name);
+                                    return Command.SINGLE_SUCCESS;
+                                }))));
+
+        // setstart <id> (admin)
+        root.then(Commands.literal(cfg.getCmdSetStart())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("id", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String id = StringArgumentType.getString(ctx, "id");
+                            cmdSetStart(ctx.getSource().getSender(), id);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // setend <id> (admin)
+        root.then(Commands.literal(cfg.getCmdSetEnd())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("id", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String id = StringArgumentType.getString(ctx, "id");
+                            cmdSetEnd(ctx.getSource().getSender(), id);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // setportal <id> (admin)
+        root.then(Commands.literal(cfg.getCmdSetPortal())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("id", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String id = StringArgumentType.getString(ctx, "id");
+                            cmdSetPortal(ctx.getSource().getSender(), id);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // addcp <id> (admin)
+        root.then(Commands.literal(cfg.getCmdAddCp())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("id", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String id = StringArgumentType.getString(ctx, "id");
+                            cmdAddCp(ctx.getSource().getSender(), id);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // save <id> (admin)
+        root.then(Commands.literal(cfg.getCmdSave())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("id", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String id = StringArgumentType.getString(ctx, "id");
+                            cmdSave(ctx.getSource().getSender(), id);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // Register root node
         registrar.register(
                 root.build(),
                 "Basic Parkour plugin commands",
@@ -247,6 +339,24 @@ public final class BasicParkourCommand {
     // Sub-command implementations
     // -----------------------------------------------------------------------
 
+    private void cmdMenu(@NotNull CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can open the menu."));
+            return;
+        }
+        new CourseSelectorGUI(plugin, player).open();
+    }
+
+    private void cmdGhost(@NotNull CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can toggle ghost playback."));
+            return;
+        }
+        boolean nowEnabled = plugin.getGhostRecorder().togglePlayerGhost(player.getUniqueId());
+        String stateStr = nowEnabled ? "<green>Enabled</green>" : "<red>Disabled</red>";
+        plugin.getMessages().getGhostToggled().send((net.kyori.adventure.audience.Audience) player, Placeholder.parsed("state", stateStr));
+    }
+
     private void cmdJoin(@NotNull CommandSender sender, @NotNull String courseId) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(Component.text("Only players can join a course."));
@@ -255,11 +365,11 @@ public final class BasicParkourCommand {
         Optional<ParkourCourse> courseOpt = BasicParkourAPI.get()
                 .getCourseRegistry().getCourse(courseId);
         if (courseOpt.isEmpty()) {
-            send(player, plugin.getMessages().getNoCourse());
+            plugin.getMessages().getNoCourse().send((net.kyori.adventure.audience.Audience) player);
             return;
         }
         if (sessionManager.getSession(player).isPresent()) {
-            send(player, plugin.getMessages().getAlreadyInSession());
+            plugin.getMessages().getAlreadyInSession().send((net.kyori.adventure.audience.Audience) player);
             return;
         }
         sessionManager.startSession(player, courseOpt.get());
@@ -268,15 +378,15 @@ public final class BasicParkourCommand {
     private void cmdLeave(@NotNull CommandSender sender) {
         if (!(sender instanceof Player player)) return;
         if (sessionManager.getSession(player).isEmpty()) {
-            send(player, "<yellow>You are not in a session.</yellow>");
+            plugin.getMessages().getNotInSession().send((net.kyori.adventure.audience.Audience) player);
             return;
         }
         sessionManager.removeSession(player);
-        send(player, "<gray>You left the course.</gray>");
+        plugin.getMessages().getSessionLeave().send((net.kyori.adventure.audience.Audience) player);
     }
 
     private void cmdTop(@NotNull CommandSender sender, @NotNull String courseId, int limit) {
-        send(sender, plugin.getMessages().getLeaderboardHeader().replace("{course}", courseId));
+        plugin.getMessages().getLeaderboardHeader().send(sender, Placeholder.parsed("course", courseId));
 
         plugin.getRepository().getLeaderboard(courseId, Math.min(limit, 50))
                 .thenAccept(board -> {
@@ -287,11 +397,10 @@ public final class BasicParkourCommand {
                     }
                     plugin.getScheduler().runGlobal(() -> {
                         for (LeaderboardEntry entry : board) {
-                            String msg = plugin.getMessages().getLeaderboardEntry()
-                                    .replace("{rank}", String.valueOf(entry.rank()))
-                                    .replace("{player}", entry.playerName())
-                                    .replace("{time}", TimerFormatter.format(entry.timeMs()));
-                            send(sender, msg);
+                            plugin.getMessages().getLeaderboardEntry().send(sender,
+                                    Placeholder.parsed("rank", String.valueOf(entry.rank())),
+                                    Placeholder.parsed("player", entry.playerName()),
+                                    Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
                         }
                     });
                 });
@@ -333,7 +442,7 @@ public final class BasicParkourCommand {
 
     private void cmdReload(@NotNull CommandSender sender) {
         plugin.reloadPlugin();
-        send(sender, "<green>Basic Parkour configuration reloaded.</green>");
+        plugin.getMessages().getReloadSuccess().send(sender);
     }
 
     private void cmdResetPb(@NotNull CommandSender sender, @NotNull String playerName) {
@@ -345,7 +454,7 @@ public final class BasicParkourCommand {
         }
         plugin.getRepository().deleteRecords(uuid).thenRun(() ->
                 plugin.getScheduler().runGlobal(() ->
-                        send(sender, "<green>Reset all records for " + playerName + ".</green>")));
+                        plugin.getMessages().getResetPbSuccess().send(sender, Placeholder.parsed("player", playerName))));
     }
 
     private void cmdGenerate(@NotNull CommandSender sender,
@@ -395,7 +504,6 @@ public final class BasicParkourCommand {
         cfg2.set("world", worldName);
 
         if ("portal".equals(typeKey)) {
-            // Store a 3×3×3 box centred on the player's feet as the portal region
             cfg2.set("min.x", loc.getBlockX() - 1);
             cfg2.set("min.y", loc.getBlockY());
             cfg2.set("min.z", loc.getBlockZ() - 1);
@@ -403,7 +511,6 @@ public final class BasicParkourCommand {
             cfg2.set("max.y", loc.getBlockY() + 2);
             cfg2.set("max.z", loc.getBlockZ() + 1);
         } else {
-            // Interact: the block the player is looking at, or their feet block
             Block targetBlock = player.getTargetBlockExact(5);
             Location blockLoc = targetBlock != null ? targetBlock.getLocation() : loc;
             cfg2.set("x", blockLoc.getBlockX());
@@ -412,7 +519,6 @@ public final class BasicParkourCommand {
         }
         plugin.saveConfig();
 
-        // Reload entry points in the listener if available
         if (generatorManager != null && entryListener != null) {
             entryListener.reloadEntries();
         }
@@ -430,10 +536,114 @@ public final class BasicParkourCommand {
         send(sender, "<green>Entry point for '" + templateId + "' removed.</green>");
     }
 
-    /**
-     * Injects the generator manager and entry listener after they are created by the plugin.
-     * Called from {@link me.usainsrht.basicparkour.core.BasicParkourPlugin#onEnable()}.
-     */
+    // ── In-game Editor Commands ──────────────────────────────────────────────
+
+    private void cmdWand(@NotNull CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can receive the wand."));
+            return;
+        }
+        if (editorManager == null) {
+            send(player, "<red>Editor is not ready.</red>");
+            return;
+        }
+        player.getInventory().addItem(editorManager.createWandItem());
+        plugin.getMessages().getWandGiven().send((net.kyori.adventure.audience.Audience) player);
+    }
+
+    private void cmdCreate(@NotNull CommandSender sender, @NotNull String id, @NotNull String name) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can create courses."));
+            return;
+        }
+        if (editorManager == null) return;
+        EditorManager.DraftCourse draft = editorManager.getOrCreateDraft(id, player.getWorld());
+        draft.name = name;
+        plugin.getMessages().getCourseCreated().send((net.kyori.adventure.audience.Audience) player, Placeholder.parsed("course", id));
+    }
+
+    private void cmdSetStart(@NotNull CommandSender sender, @NotNull String id) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can edit courses."));
+            return;
+        }
+        if (editorManager == null) return;
+        BoundingBox box = editorManager.getSelectionBox(player);
+        if (box == null) {
+            send(player, "<red>Please make a wand selection (Pos 1 & Pos 2) first!</red>");
+            return;
+        }
+        EditorManager.DraftCourse draft = editorManager.getOrCreateDraft(id, player.getWorld());
+        draft.startRegion = box;
+        draft.startLocations.clear();
+        draft.startLocations.add(player.getLocation());
+        plugin.getMessages().getStartSet().send((net.kyori.adventure.audience.Audience) player, Placeholder.parsed("course", id));
+    }
+
+    private void cmdSetEnd(@NotNull CommandSender sender, @NotNull String id) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can edit courses."));
+            return;
+        }
+        if (editorManager == null) return;
+        BoundingBox box = editorManager.getSelectionBox(player);
+        if (box == null) {
+            send(player, "<red>Please make a wand selection (Pos 1 & Pos 2) first!</red>");
+            return;
+        }
+        EditorManager.DraftCourse draft = editorManager.getOrCreateDraft(id, player.getWorld());
+        draft.endRegion = box;
+        plugin.getMessages().getEndSet().send((net.kyori.adventure.audience.Audience) player, Placeholder.parsed("course", id));
+    }
+
+    private void cmdSetPortal(@NotNull CommandSender sender, @NotNull String id) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can edit courses."));
+            return;
+        }
+        if (editorManager == null) return;
+        BoundingBox box = editorManager.getSelectionBox(player);
+        if (box == null) {
+            send(player, "<red>Please make a wand selection (Pos 1 & Pos 2) first!</red>");
+            return;
+        }
+        EditorManager.DraftCourse draft = editorManager.getOrCreateDraft(id, player.getWorld());
+        draft.portalRegion = box;
+        plugin.getMessages().getPortalSet().send((net.kyori.adventure.audience.Audience) player, Placeholder.parsed("course", id));
+    }
+
+    private void cmdAddCp(@NotNull CommandSender sender, @NotNull String id) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can edit courses."));
+            return;
+        }
+        if (editorManager == null) return;
+        BoundingBox box = editorManager.getSelectionBox(player);
+        if (box == null) {
+            send(player, "<red>Please make a wand selection (Pos 1 & Pos 2) first!</red>");
+            return;
+        }
+        EditorManager.DraftCourse draft = editorManager.getOrCreateDraft(id, player.getWorld());
+        draft.checkpoints.add(new EditorManager.DraftCheckpoint(box, player.getLocation()));
+        plugin.getMessages().getCheckpointAdded().send((net.kyori.adventure.audience.Audience) player,
+                Placeholder.parsed("index", String.valueOf(draft.checkpoints.size())),
+                Placeholder.parsed("course", id));
+    }
+
+    private void cmdSave(@NotNull CommandSender sender, @NotNull String id) {
+        if (editorManager == null) return;
+        try {
+            boolean success = editorManager.saveCourse(id);
+            if (success) {
+                plugin.getMessages().getCourseSaved().send(sender, Placeholder.parsed("course", id));
+            } else {
+                send(sender, "<red>Failed to save course '" + id + "'. Make sure start and end regions are defined.</red>");
+            }
+        } catch (Exception e) {
+            send(sender, "<red>Error saving course: " + e.getMessage() + "</red>");
+        }
+    }
+
     public void setGeneratorReferences(
         @NotNull GeneratorManagerImpl generatorManager,
         @NotNull GeneratorEntryListener entryListener
@@ -449,12 +659,21 @@ public final class BasicParkourCommand {
     private void sendHelp(@NotNull CommandSender sender) {
         String r = cfg.getRoot();
         send(sender, "<gold>━━━ <bold>Basic Parkour Commands</bold> ━━━</gold>");
+        send(sender, "<gray>/" + r + " " + cfg.getCmdMenu() + "</gray> — open course selector menu");
+        send(sender, "<gray>/" + r + " " + cfg.getCmdGhost() + "</gray> — toggle ghost run display");
         send(sender, "<gray>/" + r + " " + cfg.getCmdJoin() + " <courseId></gray> — join a course");
         send(sender, "<gray>/" + r + " " + cfg.getCmdLeave() + "</gray> — exit current session");
         send(sender, "<gray>/" + r + " " + cfg.getCmdTop() + " <courseId></gray> — view leaderboard");
         send(sender, "<gray>/" + r + " " + cfg.getCmdPb() + " [courseId]</gray> — your personal bests");
         if (sender.hasPermission(cfg.getPermAdmin())) {
-            send(sender, "<gold>━━━ Admin ━━━</gold>");
+            send(sender, "<gold>━━━ Admin / Editor ━━━</gold>");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdWand() + "</gray> — get selection wand");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdCreate() + " <id> <name></gray> — create draft course");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdSetStart() + " <id></gray> — set start region & spawn");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdSetEnd() + " <id></gray> — set end region");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdSetPortal() + " <id></gray> — set portal region");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdAddCp() + " <id></gray> — add checkpoint");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdSave() + " <id></gray> — save course to file");
             send(sender, "<gray>/" + r + " " + cfg.getCmdReload() + "</gray> — reload plugin");
             send(sender, "<gray>/" + r + " " + cfg.getCmdResetPb() + " <player></gray> — reset player records");
             send(sender, "<gray>/" + r + " " + cfg.getCmdGenerate() + " <player> <templateId></gray> — start generated run");

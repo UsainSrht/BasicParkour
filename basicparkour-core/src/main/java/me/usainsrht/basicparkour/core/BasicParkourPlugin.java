@@ -10,6 +10,8 @@ import me.usainsrht.basicparkour.core.command.CommandConfig;
 import me.usainsrht.basicparkour.core.config.CourseLoader;
 import me.usainsrht.basicparkour.core.config.GeneratorTemplateLoader;
 import me.usainsrht.basicparkour.core.config.MessageConfig;
+import me.usainsrht.basicparkour.core.editor.EditorManager;
+import me.usainsrht.basicparkour.core.gui.MenuConfig;
 import me.usainsrht.basicparkour.core.generator.GeneratorManagerImpl;
 import me.usainsrht.basicparkour.core.ghost.GhostRecorderImpl;
 import me.usainsrht.basicparkour.core.listener.GeneratorEntryListener;
@@ -61,6 +63,8 @@ public final class BasicParkourPlugin extends JavaPlugin {
     private SessionManager sessionManager;
     private GhostRecorderImpl ghostRecorder;
     private MessageConfig messages;
+    private MenuConfig menuConfig;
+    private EditorManager editorManager;
     private BasicParkourAPIImpl basicParkourAPI;
     private CommandConfig commandConfig;
     private GeneratorManagerImpl generatorManager;
@@ -71,7 +75,23 @@ public final class BasicParkourPlugin extends JavaPlugin {
     public void onEnable() {
         // ── 1. Configuration ─────────────────────────────────────────────────
         saveDefaultConfig();
-        messages = new MessageConfig(getConfig());
+        java.io.File messagesFile = new java.io.File(getDataFolder(), "messages.yml");
+        if (!messagesFile.exists()) {
+            saveResource("messages.yml", false);
+        }
+        org.bukkit.configuration.file.YamlConfiguration messagesConfig =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(messagesFile);
+        messages = new MessageConfig(messagesConfig);
+
+        java.io.File menusFile = new java.io.File(getDataFolder(), "menus.yml");
+        if (!menusFile.exists()) {
+            saveResource("menus.yml", false);
+        }
+        org.bukkit.configuration.file.YamlConfiguration menusConfig =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(menusFile);
+        menuConfig = new MenuConfig(menusConfig);
+
+        editorManager = new EditorManager(this);
         commandConfig = new CommandConfig(getConfig());
 
         // ── 2. Scheduler ─────────────────────────────────────────────────────
@@ -120,6 +140,8 @@ public final class BasicParkourPlugin extends JavaPlugin {
         var pm = getServer().getPluginManager();
         pm.registerEvents(new PlayerMoveListener(this, sessionManager), this);
         pm.registerEvents(new PlayerQuitListener(sessionManager), this);
+        pm.registerEvents(new me.usainsrht.basicparkour.core.gui.GUIListener(), this);
+        pm.registerEvents(new me.usainsrht.basicparkour.core.editor.WandListener(this, editorManager), this);
         // Collision suppression is handled via ParkourTeamManager inside SessionManager
         // (no event needed)
 
@@ -131,8 +153,15 @@ public final class BasicParkourPlugin extends JavaPlugin {
         BasicParkourCommand cmdHandler =
                 new BasicParkourCommand(this, sessionManager, commandConfig);
         cmdHandler.setGeneratorReferences(generatorManager, entryListener);
+        cmdHandler.setEditorManager(editorManager);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 event -> cmdHandler.register(event.registrar()));
+
+        // ── 11b. PlaceholderAPI ───────────────────────────────────────────────
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new me.usainsrht.basicparkour.core.papi.BasicParkourExpansion(this).register();
+            getLogger().info("[BasicParkour] PlaceholderAPI expansion registered.");
+        }
 
         // ── 12. bStats Metrics ────────────────────────────────────────────────
         new Metrics(this, 31868);
@@ -164,7 +193,15 @@ public final class BasicParkourPlugin extends JavaPlugin {
      */
     public void reloadPlugin() {
         reloadConfig();
-        messages.reload(getConfig());
+        java.io.File messagesFile = new java.io.File(getDataFolder(), "messages.yml");
+        if (messagesFile.exists()) {
+            messages.reload(org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(messagesFile));
+        }
+
+        java.io.File menusFile = new java.io.File(getDataFolder(), "menus.yml");
+        if (menusFile.exists()) {
+            menuConfig.reload(org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(menusFile));
+        }
 
         // Re-load courses
         CourseLoader loader = new CourseLoader(this);
@@ -207,8 +244,23 @@ public final class BasicParkourPlugin extends JavaPlugin {
     }
 
     @NotNull
+    public SessionManager getSessionManager() {
+        return sessionManager;
+    }
+
+    @NotNull
     public MessageConfig getMessages() {
         return messages;
+    }
+
+    @NotNull
+    public MenuConfig getMenuConfig() {
+        return menuConfig;
+    }
+
+    @NotNull
+    public EditorManager getEditorManager() {
+        return editorManager;
     }
 
     @NotNull
@@ -219,5 +271,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
     @NotNull
     public BasicParkourAPIImpl getBasicParkourAPI() {
         return basicParkourAPI;
+    }
+
+    public GeneratorManagerImpl getGeneratorManager() {
+        return generatorManager;
     }
 }

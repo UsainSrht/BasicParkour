@@ -26,11 +26,20 @@ public final class CommandConfig {
     private final String cmdLeave;
     private final String cmdTop;
     private final String cmdPb;
+    private final String cmdMenu;
+    private final String cmdGhost;
     private final String cmdReload;
     private final String cmdResetPb;
     private final String cmdGenerate;
     private final String cmdSetEntry;
     private final String cmdRemoveEntry;
+    private final String cmdWand;
+    private final String cmdCreate;
+    private final String cmdSetStart;
+    private final String cmdSetEnd;
+    private final String cmdSetPortal;
+    private final String cmdAddCp;
+    private final String cmdSave;
 
     public CommandConfig(@NotNull FileConfiguration cfg) {
         ConfigurationSection sec = cfg.getConfigurationSection("commands");
@@ -45,11 +54,20 @@ public final class CommandConfig {
             cmdLeave       = "leave";
             cmdTop         = "top";
             cmdPb          = "pb";
+            cmdMenu        = "menu";
+            cmdGhost       = "ghost";
             cmdReload      = "reload";
             cmdResetPb     = "resetpb";
             cmdGenerate    = "generate";
             cmdSetEntry    = "setentry";
             cmdRemoveEntry = "removeentry";
+            cmdWand        = "wand";
+            cmdCreate      = "create";
+            cmdSetStart    = "setstart";
+            cmdSetEnd      = "setend";
+            cmdSetPortal   = "setportal";
+            cmdAddCp       = "addcp";
+            cmdSave        = "save";
             return;
         }
 
@@ -64,21 +82,39 @@ public final class CommandConfig {
             cmdLeave       = sub.getString("leave",        "leave");
             cmdTop         = sub.getString("top",          "top");
             cmdPb          = sub.getString("pb",           "pb");
+            cmdMenu        = sub.getString("menu",         "menu");
+            cmdGhost       = sub.getString("ghost",        "ghost");
             cmdReload      = sub.getString("reload",       "reload");
             cmdResetPb     = sub.getString("resetpb",      "resetpb");
             cmdGenerate    = sub.getString("generate",     "generate");
             cmdSetEntry    = sub.getString("setentry",     "setentry");
             cmdRemoveEntry = sub.getString("removeentry",  "removeentry");
+            cmdWand        = sub.getString("wand",         "wand");
+            cmdCreate      = sub.getString("create",       "create");
+            cmdSetStart    = sub.getString("setstart",     "setstart");
+            cmdSetEnd      = sub.getString("setend",       "setend");
+            cmdSetPortal   = sub.getString("setportal",    "setportal");
+            cmdAddCp       = sub.getString("addcp",        "addcp");
+            cmdSave        = sub.getString("save",         "save");
         } else {
             cmdJoin        = "join";
             cmdLeave       = "leave";
             cmdTop         = "top";
             cmdPb          = "pb";
+            cmdMenu        = "menu";
+            cmdGhost       = "ghost";
             cmdReload      = "reload";
             cmdResetPb     = "resetpb";
             cmdGenerate    = "generate";
             cmdSetEntry    = "setentry";
             cmdRemoveEntry = "removeentry";
+            cmdWand        = "wand";
+            cmdCreate      = "create";
+            cmdSetStart    = "setstart";
+            cmdSetEnd      = "setend";
+            cmdSetPortal   = "setportal";
+            cmdAddCp       = "addcp";
+            cmdSave        = "save";
         }
     }
 
@@ -100,9 +136,18 @@ public final class CommandConfig {
     public @NotNull String getCmdLeave()        { return cmdLeave; }
     public @NotNull String getCmdTop()          { return cmdTop; }
     public @NotNull String getCmdPb()           { return cmdPb; }
+    public @NotNull String getCmdMenu()         { return cmdMenu; }
+    public @NotNull String getCmdGhost()        { return cmdGhost; }
     public @NotNull String getCmdReload()       { return cmdReload; }
     public @NotNull String getCmdResetPb()      { return cmdResetPb; }
     public @NotNull String getCmdGenerate()     { return cmdGenerate; }
     public @NotNull String getCmdSetEntry()     { return cmdSetEntry; }
     public @NotNull String getCmdRemoveEntry()  { return cmdRemoveEntry; }
+    public @NotNull String getCmdWand()         { return cmdWand; }
+    public @NotNull String getCmdCreate()       { return cmdCreate; }
+    public @NotNull String getCmdSetStart()     { return cmdSetStart; }
+    public @NotNull String getCmdSetEnd()       { return cmdSetEnd; }
+    public @NotNull String getCmdSetPortal()    { return cmdSetPortal; }
+    public @NotNull String getCmdAddCp()        { return cmdAddCp; }
+    public @NotNull String getCmdSave()         { return cmdSave; }
 }

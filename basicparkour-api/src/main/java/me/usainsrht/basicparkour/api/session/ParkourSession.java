@@ -27,6 +27,15 @@ public interface ParkourSession {
     Player getPlayer();
 
     /**
+     * The location where the player was when they joined the session.
+     * Used for returning the player if they fail with FAIL_DIE mode.
+     *
+     * @return the join location
+     */
+    @NotNull
+    org.bukkit.Location getJoinLocation();
+
+    /**
      * The course being run.
      *
      * @return the course
@@ -128,6 +137,8 @@ public interface ParkourSession {
         TIME_LIMIT,
         /** The player disconnected. */
         DISCONNECT,
+        /** Player stepped on a blacklisted block or a non-whitelisted block. */
+        BLOCK_LIST,
         /** Triggered programmatically by a third-party plugin. */
         API
     }

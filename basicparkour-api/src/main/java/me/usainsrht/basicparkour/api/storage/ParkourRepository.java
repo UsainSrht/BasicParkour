@@ -87,4 +87,46 @@ public interface ParkourRepository {
      */
     @NotNull
     CompletableFuture<Void> deleteRecords(@NotNull UUID playerUuid);
+
+    /**
+     * Saves or updates a serialized ghost run for a player on a course.
+     *
+     * @param playerUuid the player UUID
+     * @param playerName the player name
+     * @param courseId the course ID
+     * @param timeMs the completion time in ms
+     * @param framesData serialized binary frames
+     * @return future completing when saved
+     */
+    @NotNull
+    default CompletableFuture<Void> saveGhostRecord(@NotNull UUID playerUuid,
+                                                    @NotNull String playerName,
+                                                    @NotNull String courseId,
+                                                    long timeMs,
+                                                    byte @NotNull [] framesData) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * Gets the fastest ghost run data for the specified course.
+     *
+     * @param courseId the course ID
+     * @return future containing optional byte array of serialized frames
+     */
+    @NotNull
+    default CompletableFuture<Optional<byte[]>> getBestGhost(@NotNull String courseId) {
+        return CompletableFuture.completedFuture(Optional.empty());
+    }
+
+    /**
+     * Gets the personal ghost run data for a player on a course.
+     *
+     * @param playerUuid the player UUID
+     * @param courseId the course ID
+     * @return future containing optional byte array of serialized frames
+     */
+    @NotNull
+    default CompletableFuture<Optional<byte[]>> getPlayerGhost(@NotNull UUID playerUuid, @NotNull String courseId) {
+        return CompletableFuture.completedFuture(Optional.empty());
+    }
 }

@@ -15,6 +15,7 @@ import me.usainsrht.basicparkour.core.BasicParkourPlugin;
 import me.usainsrht.basicparkour.core.config.MessageConfig;
 import me.usainsrht.basicparkour.core.scheduling.FoliaScheduler;
 import me.usainsrht.basicparkour.core.util.TimerFormatter;
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -96,6 +97,14 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     @Override
     @Nullable
     public ParkourSession startSession(@NotNull Player player, @NotNull ParkourCourse course) {
+        return startSession(player, course, true);
+    }
+
+    /**
+     * Starts a new parkour session with configurable teleportation.
+     */
+    @Nullable
+    public ParkourSession startSession(@NotNull Player player, @NotNull ParkourCourse course, boolean shouldTeleport) {
         // Disallow starting if already in a session
         ParkourSessionImpl existing = sessions.get(player.getUniqueId());
         if (existing != null) return existing;
@@ -106,8 +115,25 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         if (event.isCancelled()) return null;
 
         // Create session
-        ParkourSessionImpl session = new ParkourSessionImpl(player, course, this);
+        ParkourSessionImpl session = new ParkourSessionImpl(player, player.getLocation().clone(), course, this);
         sessions.put(player.getUniqueId(), session);
+
+        // Teleport to start if requested and configured
+        if (shouldTeleport) {
+            Location startLoc = null;
+            if (!course.getStartLocations().isEmpty()) {
+                java.util.List<Location> locs = course.getStartLocations();
+                startLoc = locs.get(new java.util.Random().nextInt(locs.size()));
+            } else if (!(course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse)) {
+                // For premade courses, fallback to start region center
+                startLoc = course.getStartRegion().getCenter();
+            }
+
+            if (startLoc != null) {
+                final Location finalStart = startLoc;
+                scheduler.runOnEntity(player, () -> player.teleportAsync(finalStart));
+            }
+        }
 
         // Add to no-collision team so parkour players can't push each other
         teamManager.addPlayer(player);
@@ -120,9 +146,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             plugin.getGhostRecorder().startRecording(player);
         }
 
-        // Notify player
-        player.sendActionBar(miniMessage.deserialize(messages.getCourseStart(),
-            Placeholder.component("course", course.getDisplayName())));
+        // Notify player via YamlMessage
+        messages.getCourseStart().send((Audience) player,
+            Placeholder.component("course", course.getDisplayName()));
 
         plugin.getLogger().info("[BasicParkour] Started session for %s on course '%s'".formatted(
             player.getName(), course.getId()));
@@ -173,11 +199,10 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         // Advance
         session.advanceCheckpoint();
 
-        // Notify player
-        String msg = messages.getCheckpointReach()
-            .replace("{checkpoint}", String.valueOf(checkpoint.getIndex() + 1))
-            .replace("{time}", snapshot.formatted());
-        player.sendActionBar(miniMessage.deserialize(msg));
+        // Notify player via YamlMessage
+        messages.getCheckpointReach().send((Audience) player,
+            Placeholder.parsed("checkpoint", String.valueOf(checkpoint.getIndex() + 1)),
+            Placeholder.parsed("time", snapshot.formatted()));
 
         return true;
     }
@@ -206,6 +231,11 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         // Restore visibility
         restoreVisibility(player);
 
+        // Generator session cleanup
+        if (plugin.getGeneratorManager() != null) {
+            plugin.getGeneratorManager().onSessionEnd(player);
+        }
+
         // Stop ghost recording
         if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
             plugin.getGhostRecorder()
@@ -232,16 +262,15 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                         );
                         Bukkit.getPluginManager().callEvent(ev);
 
-                        // Display completion message
-                        String msg = messages.getCourseComplete()
-                            .replace("{time}", TimerFormatter.format(elapsed));
-                        player.sendMessage(miniMessage.deserialize(msg));
+                        // Display completion message via YamlMessage
+                        messages.getCourseComplete().send((Audience) player,
+                            Placeholder.parsed("time", TimerFormatter.format(elapsed)),
+                            Placeholder.component("course", session.getCourse().getDisplayName()));
 
                         if (isNewBest) {
-                            player.sendMessage(miniMessage.deserialize(
-                                messages.getPersonalBest()
-                                    .replace("{time}", TimerFormatter.format(elapsed))
-                            ));
+                            messages.getPersonalBest().send((Audience) player,
+                                Placeholder.parsed("time", TimerFormatter.format(elapsed)),
+                                Placeholder.component("course", session.getCourse().getDisplayName()));
                         }
 
                         // Run reward commands
@@ -274,10 +303,23 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         if (session == null) return;
         if (!session.tryFail()) return;
 
-        // Determine respawn location: last checkpoint or start center
-        Location respawnLoc = session.getLastCheckpoint()
-            .map(Checkpoint::getSpawnLocation)
-            .orElseGet(() -> session.getCourse().getStartRegion().getCenter());
+        me.usainsrht.basicparkour.api.course.DieMode dieMode = session.getCourse().getDieMode();
+
+        Location respawnLoc;
+        if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE) {
+            respawnLoc = session.getJoinLocation();
+        } else {
+            // Determine respawn location: last checkpoint or start center
+            respawnLoc = session.getLastCheckpoint()
+                .map(Checkpoint::getSpawnLocation)
+                .orElseGet(() -> {
+                    if (!session.getCourse().getStartLocations().isEmpty()) {
+                        java.util.List<Location> locs = session.getCourse().getStartLocations();
+                        return locs.get(new java.util.Random().nextInt(locs.size()));
+                    }
+                    return session.getCourse().getStartRegion().getCenter();
+                });
+        }
 
         // Reset session state to ACTIVE so the player can continue from checkpoint
         // We do this by creating a fresh session pinned to the last checkpoint index
@@ -289,19 +331,32 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         // Instant respawn via entity scheduler
         scheduler.runOnEntity(player, () -> {
             player.teleportAsync(respawnLoc).thenRun(() -> {
-                // Show fail message
-                player.sendActionBar(miniMessage.deserialize(messages.getSessionFail()));
+                // Show fail message via YamlMessage
+                messages.getSessionFail().send((Audience) player,
+                    Placeholder.component("course", session.getCourse().getDisplayName()));
 
-                // Restart a fresh session on the same course, pre-seeded with checkpoint
-                ParkourSessionImpl newSession = new ParkourSessionImpl(
-                    player, session.getCourse(), this
-                );
-                // Fast-forward the checkpoint index to where they were
-                int cpIdx = session.getCurrentCheckpointIndex();
-                for (int i = 0; i <= cpIdx; i++) {
-                    newSession.advanceCheckpoint();
+                if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.RESTART_DIE) {
+                    // Restart a fresh session on the same course, preserving startTime and checkpoints
+                    ParkourSessionImpl newSession = new ParkourSessionImpl(
+                        player, session.getJoinLocation(), session.getCourse(), this, session.getStartTime()
+                    );
+                    // Fast-forward the checkpoint index to where they were
+                    int cpIdx = session.getCurrentCheckpointIndex();
+                    for (int i = 0; i <= cpIdx; i++) {
+                        newSession.advanceCheckpoint();
+                    }
+                    sessions.put(player.getUniqueId(), newSession);
+                } else {
+                    // FAIL_DIE: completely end session
+                    teamManager.removePlayer(player);
+                    restoreVisibility(player);
+                    if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
+                        plugin.getGhostRecorder().discardRecording(player);
+                    }
+                    if (plugin.getGeneratorManager() != null) {
+                        plugin.getGeneratorManager().onSessionEnd(player);
+                    }
                 }
-                sessions.put(player.getUniqueId(), newSession);
             });
         });
     }
@@ -321,6 +376,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             if (plugin.getConfig().getBoolean("ghost.enabled", true)) {
                 plugin.getGhostRecorder().discardRecording(player);
             }
+            if (plugin.getGeneratorManager() != null) {
+                plugin.getGeneratorManager().onSessionEnd(player);
+            }
         }
     }
 
@@ -333,11 +391,10 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             Player player = session.getPlayer();
             if (!player.isOnline()) return;
             var snapshot = session.getTimerSnapshot();
-            String timerMsg = messages.getTimerDisplay()
-                .replace("{time}", snapshot.formatted())
-                .replace("{checkpoint}", String.valueOf(snapshot.checkpointIndex() + 1))
-                .replace("{total}", String.valueOf(session.getCourse().getCheckpoints().size()));
-            player.sendActionBar(miniMessage.deserialize(timerMsg));
+            messages.getTimerDisplay().send((Audience) player,
+                Placeholder.parsed("time", snapshot.formatted()),
+                Placeholder.parsed("checkpoint", String.valueOf(snapshot.checkpointIndex() + 1)),
+                Placeholder.parsed("total", String.valueOf(session.getCourse().getCheckpoints().size())));
         });
     }
 

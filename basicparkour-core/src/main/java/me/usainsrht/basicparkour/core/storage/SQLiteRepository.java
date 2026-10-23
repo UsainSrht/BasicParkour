@@ -78,6 +78,21 @@ public final class SQLiteRepository implements ParkourRepository {
                 CREATE INDEX IF NOT EXISTS idx_course_time
                     ON basicparkour_records (course_id, time_ms)
                 """);
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS basicparkour_ghosts (
+                    uuid        TEXT    NOT NULL,
+                    player_name TEXT    NOT NULL,
+                    course_id   TEXT    NOT NULL,
+                    time_ms     INTEGER NOT NULL,
+                    recorded_at INTEGER NOT NULL,
+                    frames_data BLOB    NOT NULL,
+                    PRIMARY KEY (uuid, course_id)
+                )
+                """);
+            stmt.executeUpdate("""
+                CREATE INDEX IF NOT EXISTS idx_ghost_course_time
+                    ON basicparkour_ghosts (course_id, time_ms)
+                """);
         }
     }
 
@@ -208,11 +223,100 @@ public final class SQLiteRepository implements ParkourRepository {
         return CompletableFuture.runAsync(() -> {
             try (Connection conn = dataSource.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(
-                     "DELETE FROM basicparkour_records WHERE uuid = ?")) {
+                     "DELETE FROM basicparkour_records WHERE uuid = ?");
+                 PreparedStatement ghostStmt = conn.prepareStatement(
+                     "DELETE FROM basicparkour_ghosts WHERE uuid = ?")) {
                 stmt.setString(1, playerUuid.toString());
                 stmt.executeUpdate();
+                ghostStmt.setString(1, playerUuid.toString());
+                ghostStmt.executeUpdate();
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to delete records", e);
+            }
+        }, ioExecutor);
+    }
+
+    @Override
+    @NotNull
+    public CompletableFuture<Void> saveGhostRecord(@NotNull UUID playerUuid,
+                                                    @NotNull String playerName,
+                                                    @NotNull String courseId,
+                                                    long timeMs,
+                                                    byte @NotNull [] framesData) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = dataSource.getConnection()) {
+                long existingBest = Long.MAX_VALUE;
+                try (PreparedStatement sel = conn.prepareStatement(
+                        "SELECT time_ms FROM basicparkour_ghosts WHERE uuid = ? AND course_id = ?")) {
+                    sel.setString(1, playerUuid.toString());
+                    sel.setString(2, courseId);
+                    try (ResultSet rs = sel.executeQuery()) {
+                        if (rs.next()) existingBest = rs.getLong(1);
+                    }
+                }
+                if (timeMs >= existingBest) return;
+
+                try (PreparedStatement upsert = conn.prepareStatement("""
+                    INSERT INTO basicparkour_ghosts (uuid, player_name, course_id, time_ms, recorded_at, frames_data)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(uuid, course_id) DO UPDATE SET
+                        player_name = excluded.player_name,
+                        time_ms = excluded.time_ms,
+                        recorded_at = excluded.recorded_at,
+                        frames_data = excluded.frames_data
+                    WHERE excluded.time_ms < basicparkour_ghosts.time_ms
+                    """)) {
+                    upsert.setString(1, playerUuid.toString());
+                    upsert.setString(2, playerName);
+                    upsert.setString(3, courseId);
+                    upsert.setLong(4, timeMs);
+                    upsert.setLong(5, System.currentTimeMillis());
+                    upsert.setBytes(6, framesData);
+                    upsert.executeUpdate();
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to save ghost record", e);
+            }
+        }, ioExecutor);
+    }
+
+    @Override
+    @NotNull
+    public CompletableFuture<Optional<byte[]>> getBestGhost(@NotNull String courseId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = dataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                     "SELECT frames_data FROM basicparkour_ghosts WHERE course_id = ? ORDER BY time_ms ASC LIMIT 1")) {
+                ps.setString(1, courseId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return Optional.ofNullable(rs.getBytes(1));
+                    }
+                }
+                return Optional.empty();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to load best ghost", e);
+            }
+        }, ioExecutor);
+    }
+
+    @Override
+    @NotNull
+    public CompletableFuture<Optional<byte[]>> getPlayerGhost(@NotNull UUID playerUuid, @NotNull String courseId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = dataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                     "SELECT frames_data FROM basicparkour_ghosts WHERE uuid = ? AND course_id = ?")) {
+                ps.setString(1, playerUuid.toString());
+                ps.setString(2, courseId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return Optional.ofNullable(rs.getBytes(1));
+                    }
+                }
+                return Optional.empty();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to load player ghost", e);
             }
         }, ioExecutor);
     }

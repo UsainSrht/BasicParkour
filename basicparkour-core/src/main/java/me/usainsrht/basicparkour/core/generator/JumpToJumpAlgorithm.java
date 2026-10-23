@@ -187,11 +187,20 @@ public final class JumpToJumpAlgorithm {
             }
         }
 
-        // ── 6. Obstacle block on top of centre (optional) ─────────────────
+        // ── 6. Obstacle block on top of platform (optional) ──────────────
+        boolean hasCenterObstacle = false;
         if (!theme.obstacleMaterials().isEmpty()
                 && rng.nextDouble() < template.resolvedObstacleChance()) {
+            int ox = 0, oz = 0;
+            if (platformSize > 1) {
+                int half = platformSize / 2;
+                ox = rng.nextBoolean() ? half : -half;
+                oz = rng.nextBoolean() ? half : -half;
+            } else {
+                hasCenterObstacle = true;
+            }
             Location obstacleLoc = new Location(world,
-                center.getBlockX(), center.getBlockY() + 1, center.getBlockZ());
+                center.getBlockX() + ox, center.getBlockY() + 1, center.getBlockZ() + oz);
             Material obstacleMat = pickFrom(theme.obstacleMaterials(), rng);
             blocks.add(new PlacedBlock(obstacleLoc, obstacleMat, platformIndex));
         }
@@ -203,10 +212,11 @@ public final class JumpToJumpAlgorithm {
         Location regionMin = new Location(world,
             center.getBlockX() - 1, center.getBlockY(), center.getBlockZ() - 1);
         Location regionMax = new Location(world,
-            center.getBlockX() + 1, center.getBlockY() + 2, center.getBlockZ() + 1);
+            center.getBlockX() + 1, center.getBlockY() + (hasCenterObstacle ? 3 : 2), center.getBlockZ() + 1);
 
+        double spawnY = center.getBlockY() + (hasCenterObstacle ? 2.0 : 1.0);
         Location spawnLoc = new Location(world,
-            center.getBlockX() + 0.5, center.getBlockY() + 1, center.getBlockZ() + 0.5,
+            center.getBlockX() + 0.5, spawnY, center.getBlockZ() + 0.5,
             outgoingYaw, 0f);
 
         Checkpoint checkpoint = new CheckpointImpl(platformIndex, spawnLoc,

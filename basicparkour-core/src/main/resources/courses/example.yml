@@ -24,6 +24,28 @@ start-region:
     y: 68.0
     z: 4.0
 
+# ─── Portal region & Start Locations ──────────────────────────────────────────
+# When a player walks into the portal, they start the course.
+# If teleport-from-portal is true, they are teleported to a random start-location.
+portal-region:
+  min:
+    x: 10.0
+    y: 64.0
+    z: 10.0
+  max:
+    x: 12.0
+    y: 66.0
+    z: 12.0
+teleport-from-portal: true
+
+# The locations the player can be teleported to when joining via command or portal.
+start-locations:
+  - x: 2.0
+    y: 64.5
+    z: 2.0
+    yaw: 0.0
+    pitch: 0.0
+
 # ─── End region ───────────────────────────────────────────────────────────────
 # When a player walks into this AABB during an active session, the course completes.
 end-region:
@@ -107,6 +129,24 @@ modifiers:
 
   - block: MAGENTA_CONCRETE
     type: kill
+
+# ─── Block List ───────────────────────────────────────────────────────────────
+# Define which blocks instantly fail the course (BLACKLIST) or which blocks
+# are the ONLY blocks allowed to be stepped on (WHITELIST).
+block-list:
+  mode: BLACKLIST
+  materials:
+    - LAVA
+    - BEDROCK
+
+# ─── Min Y & Die Mode ─────────────────────────────────────────────────────────
+# Minimum Y level before a player is considered to have fallen out.
+min-y: 20
+
+# What happens when a player dies/fails (RESTART_DIE or FAIL_DIE)
+# RESTART_DIE: Teleport to last checkpoint, keep timer running.
+# FAIL_DIE: Teleport back to where they originally joined, session ends.
+die-mode: RESTART_DIE
 
 # ─── Time limit ───────────────────────────────────────────────────────────────
 # Optional. Remove or set to -1 to disable.

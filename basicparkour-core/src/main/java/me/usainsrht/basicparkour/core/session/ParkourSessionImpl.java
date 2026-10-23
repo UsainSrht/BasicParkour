@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class ParkourSessionImpl implements ParkourSession {
 
     private final Player player;
+    private final org.bukkit.Location joinLocation;
     private final ParkourCourse course;
     private final long startTime;
 
@@ -33,15 +34,26 @@ public final class ParkourSessionImpl implements ParkourSession {
     private final SessionManager sessionManager;
 
     public ParkourSessionImpl(@NotNull Player player,
+                               @NotNull org.bukkit.Location joinLocation,
                                @NotNull ParkourCourse course,
                                @NotNull SessionManager sessionManager) {
+        this(player, joinLocation, course, sessionManager, System.currentTimeMillis());
+    }
+
+    public ParkourSessionImpl(@NotNull Player player,
+                               @NotNull org.bukkit.Location joinLocation,
+                               @NotNull ParkourCourse course,
+                               @NotNull SessionManager sessionManager,
+                               long startTime) {
         this.player = player;
+        this.joinLocation = joinLocation;
         this.course = course;
         this.sessionManager = sessionManager;
-        this.startTime = System.currentTimeMillis();
+        this.startTime = startTime;
     }
 
     @Override @NotNull public Player getPlayer() { return player; }
+    @Override @NotNull public org.bukkit.Location getJoinLocation() { return joinLocation; }
     @Override @NotNull public ParkourCourse getCourse() { return course; }
     @Override @NotNull public SessionState getState() { return state.get(); }
     @Override public long getStartTime() { return startTime; }

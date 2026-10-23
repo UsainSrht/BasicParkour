@@ -148,25 +148,20 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
     }
 
     /**
-     * Restores only blocks belonging to platforms with index {@code <= upToPlatformIndex}.
-     * Used by the sliding window to clean up platforms the player has passed.
-     * <strong>MUST be called on the region thread owning each block's chunk.</strong>
+     * Restores the specified blocks belonging to a single chunk on that chunk's region thread.
      */
-    public void restoreBlocksUpTo(int upToPlatformIndex, @NotNull Logger logger) {
+    public void restoreChunkBlocks(@NotNull List<PlacedBlock> chunkBlocks, @NotNull Logger logger) {
         synchronized (placedBlocks) {
-            placedBlocks.removeIf(pb -> {
-                if (pb.platformIndex() <= upToPlatformIndex) {
-                    try {
-                        String key = locationKey(pb.location());
-                        Material original = originalMaterials.remove(key);
-                        pb.location().getBlock().setType(original != null ? original : Material.AIR, false);
-                    } catch (Exception ex) {
-                        logger.warning("[Generator] Sliding cleanup failed at " + pb.location());
-                    }
-                    return true;
+            for (PlacedBlock pb : chunkBlocks) {
+                try {
+                    String key = locationKey(pb.location());
+                    Material original = originalMaterials.remove(key);
+                    pb.location().getBlock().setType(original != null ? original : Material.AIR, false);
+                    placedBlocks.remove(pb);
+                } catch (Exception ex) {
+                    logger.warning("[Generator] Failed to restore block at " + pb.location() + ": " + ex.getMessage());
                 }
-                return false;
-            });
+            }
         }
     }
 

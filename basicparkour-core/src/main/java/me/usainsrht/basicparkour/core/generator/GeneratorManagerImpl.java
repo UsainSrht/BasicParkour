@@ -392,7 +392,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 }
                 for (List<PlacedBlock> chunk : toRemoveByChunk.values()) {
                     scheduler.runAtLocation(chunk.get(0).location(), () ->
-                        instance.restoreBlocksUpTo(removeTo, plugin.getLogger()));
+                        instance.restoreChunkBlocks(chunk, plugin.getLogger()));
                 }
                 instance.slidingWindowHead = removeUpTo;
             }
@@ -408,6 +408,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 lastCenter[0] = newPlatform.centerLocation().clone();
                 lastYaw[0]    = newPlatform.outgoingYawDeg();
                 nextIndex[0]++;
+
+                // Append checkpoint dynamically to ongoing infinite run!
+                instance.getCourseImpl().appendCheckpoint(newPlatform.checkpoint());
 
                 // Stage into instance (not yet placed)
                 for (PlacedBlock pb : newPlatform.placedBlocks()) {
@@ -504,7 +507,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         }
         for (List<PlacedBlock> chunk : byChunk.values()) {
             scheduler.runAtLocation(chunk.get(0).location(), () ->
-                instance.restoreBlocks(plugin.getLogger()));
+                instance.restoreChunkBlocks(chunk, plugin.getLogger()));
         }
     }
 

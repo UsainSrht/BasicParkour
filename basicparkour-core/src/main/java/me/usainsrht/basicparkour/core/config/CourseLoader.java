@@ -19,9 +19,15 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Level;
+
+import me.usainsrht.basicparkour.api.course.BlockListMode;
+import me.usainsrht.basicparkour.api.course.DieMode;
 
 /**
  * Loads {@link ParkourCourse} definitions from {@code plugins/BasicParkour/courses/*.yml}.
@@ -80,8 +86,13 @@ public final class CourseLoader {
     // Private: parse a single course file
     // -----------------------------------------------------------------------
 
+    @NotNull
+    public Optional<ParkourCourse> load(@NotNull File file) {
+        return Optional.ofNullable(loadCourse(file));
+    }
+
     @Nullable
-    private ParkourCourse loadCourse(@NotNull File file) {
+    public ParkourCourse loadCourse(@NotNull File file) {
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
 
         String id = cfg.getString("id");
@@ -138,13 +149,72 @@ public final class CourseLoader {
         // Reward commands
         List<String> rewards = cfg.getStringList("rewards");
 
+        // Start locations
+        List<Location> startLocations = new ArrayList<>();
+        if (cfg.isList("start-locations")) {
+            for (Map<?, ?> locMap : cfg.getMapList("start-locations")) {
+                double x = toDouble(locMap.get("x"));
+                double y = toDouble(locMap.get("y"));
+                double z = toDouble(locMap.get("z"));
+                Object rawYaw = locMap.get("yaw");
+                Object rawPitch = locMap.get("pitch");
+                float yaw = (float) toDouble(rawYaw != null ? rawYaw : 0);
+                float pitch = (float) toDouble(rawPitch != null ? rawPitch : 0);
+                startLocations.add(new Location(world, x, y, z, yaw, pitch));
+            }
+        } else if (cfg.isConfigurationSection("start-location")) {
+            ConfigurationSection locSec = cfg.getConfigurationSection("start-location");
+            startLocations.add(new Location(world, locSec.getDouble("x"), locSec.getDouble("y"), locSec.getDouble("z"), (float) locSec.getDouble("yaw", 0), (float) locSec.getDouble("pitch", 0)));
+        }
+
+        // Portal region
+        CourseRegionImpl portalRegion = null;
+        if (cfg.contains("portal-region")) {
+            portalRegion = parseRegion(cfg, "portal-region", world, file);
+        }
+        boolean portalTeleport = cfg.getBoolean("teleport-from-portal", true);
+
+        // Block list
+        Set<Material> blockList = new HashSet<>();
+        if (cfg.isList("block-list.materials")) {
+            for (String matName : cfg.getStringList("block-list.materials")) {
+                Material mat = Material.matchMaterial(matName);
+                if (mat != null) blockList.add(mat);
+                else warn(file, "Unknown material in block-list: " + matName);
+            }
+        }
+        BlockListMode blockListMode = BlockListMode.BLACKLIST;
+        String modeStr = cfg.getString("block-list.mode", "BLACKLIST");
+        try {
+            blockListMode = BlockListMode.valueOf(modeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            warn(file, "Invalid block-list mode: " + modeStr);
+        }
+
+        // Min Y
+        Integer minY = null;
+        if (cfg.contains("min-y")) {
+            minY = cfg.getInt("min-y");
+        }
+
+        // Die Mode
+        DieMode dieMode = DieMode.RESTART_DIE;
+        String dieModeStr = cfg.getString("die-mode", "RESTART_DIE");
+        try {
+            dieMode = DieMode.valueOf(dieModeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            warn(file, "Invalid die-mode: " + dieModeStr);
+        }
+
         // Time limit
         long timeLimitMs = cfg.contains("time-limit-seconds")
             ? cfg.getLong("time-limit-seconds") * 1000L
             : -1L;
 
         return new ParkourCourseImpl(id, displayName, worldName,
-            startRegion, endRegion, checkpoints, modifiers, rewards, timeLimitMs);
+            startRegion, endRegion, startLocations, portalRegion, portalTeleport,
+            blockList, blockListMode, minY, dieMode,
+            checkpoints, modifiers, rewards, timeLimitMs);
     }
 
     @Nullable

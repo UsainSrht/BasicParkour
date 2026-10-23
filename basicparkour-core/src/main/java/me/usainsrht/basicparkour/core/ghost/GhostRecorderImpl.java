@@ -35,8 +35,12 @@ public final class GhostRecorderImpl implements GhostRecorder {
     private final int maxFrames;
     private final long intervalMs;
 
-    /** Player UUID → active frame buffer + capture task */
+    /** Active recording sessions: player UUID -> recording session */
     private final ConcurrentHashMap<UUID, RecordingSession> sessions = new ConcurrentHashMap<>();
+    /** Active playback sessions: player UUID -> playback session */
+    private final ConcurrentHashMap<UUID, PlaybackSession> playbacks = new ConcurrentHashMap<>();
+    /** Players who toggled ghosts off */
+    private final Set<UUID> ghostDisabled = ConcurrentHashMap.newKeySet();
 
     public GhostRecorderImpl(@NotNull BasicParkourPlugin plugin, @NotNull FoliaScheduler scheduler) {
         this.plugin = plugin;
@@ -50,18 +54,18 @@ public final class GhostRecorderImpl implements GhostRecorder {
         if (sessions.containsKey(player.getUniqueId())) return;
 
         List<GhostFrame> frames = Collections.synchronizedList(new ArrayList<>(maxFrames));
+        long startTime = System.currentTimeMillis();
 
-        // Sample position on entity thread, add to frame list on async thread
+        // Sample position on entity thread, add to frame list
         FoliaScheduler.RepeatingTask task = scheduler.runRepeatingAsync(() -> {
-            // We need to read location on entity's thread
             scheduler.runOnEntity(player, () -> {
                 if (!player.isOnline()) return;
-                if (frames.size() >= maxFrames) return; // buffer full
+                if (frames.size() >= maxFrames) return;
                 Location loc = player.getLocation();
                 GhostFrame frame = new GhostFrame(
                     loc.getX(), loc.getY(), loc.getZ(),
                     loc.getYaw(), loc.getPitch(),
-                    System.currentTimeMillis()
+                    System.currentTimeMillis() - startTime
                 );
                 frames.add(frame);
             });
@@ -74,6 +78,7 @@ public final class GhostRecorderImpl implements GhostRecorder {
     public void discardRecording(@NotNull Player player) {
         RecordingSession session = sessions.remove(player.getUniqueId());
         if (session != null) session.task().cancel();
+        stopPlayback(player);
     }
 
     @Override
@@ -82,22 +87,25 @@ public final class GhostRecorderImpl implements GhostRecorder {
                                                    @NotNull String courseId,
                                                    long timeMs) {
         RecordingSession session = sessions.remove(player.getUniqueId());
-        if (session == null) return CompletableFuture.completedFuture(UUID.randomUUID());
+        stopPlayback(player);
+
+        if (session == null || session.frames().isEmpty()) {
+            return CompletableFuture.completedFuture(UUID.randomUUID());
+        }
         session.task().cancel();
 
         List<GhostFrame> frames = new ArrayList<>(session.frames());
         UUID ghostId = UUID.randomUUID();
 
         return CompletableFuture.supplyAsync(() -> {
-            // Serialise frames to JSON and store in DB
-            // (Full DB integration depends on repository implementation;
-            //  this stub logs and returns the ghost ID)
-            plugin.getLogger().info("[Ghost] Saved %d frames for %s on course '%s' (time: %dms)"
-                .formatted(frames.size(), player.getName(), courseId, timeMs));
-            // TODO: persist frames to repository via dedicated ghost table
-            return ghostId;
-        }).exceptionally(ex -> {
-            plugin.getLogger().log(Level.WARNING, "Failed to save ghost for " + player.getName(), ex);
+            try {
+                byte[] data = GhostFrame.serializeList(frames);
+                plugin.getRepository().saveGhostRecord(player.getUniqueId(), player.getName(), courseId, timeMs, data);
+                plugin.getLogger().info("[Ghost] Saved %d frames for %s on course '%s' (%d ms)"
+                    .formatted(frames.size(), player.getName(), courseId, timeMs));
+            } catch (Exception ex) {
+                plugin.getLogger().log(Level.WARNING, "Failed to serialize and save ghost for " + player.getName(), ex);
+            }
             return ghostId;
         });
     }
@@ -107,12 +115,139 @@ public final class GhostRecorderImpl implements GhostRecorder {
         return sessions.containsKey(player.getUniqueId());
     }
 
+    // ── Ghost Playback ──────────────────────────────────────────────────────
+
+    public void startPlayback(@NotNull Player player, @NotNull String courseId) {
+        if (!plugin.getConfig().getBoolean("ghost.playback.enabled", true)) return;
+        if (ghostDisabled.contains(player.getUniqueId())) return;
+
+        stopPlayback(player);
+
+        String mode = plugin.getConfig().getString("ghost.playback.mode", "SERVER_BEST");
+        CompletableFuture<Optional<byte[]>> ghostDataFuture = mode.equalsIgnoreCase("PERSONAL_BEST")
+                ? plugin.getRepository().getPlayerGhost(player.getUniqueId(), courseId)
+                : plugin.getRepository().getBestGhost(courseId);
+
+        ghostDataFuture.thenAccept(opt -> {
+            if (opt.isEmpty()) return;
+            try {
+                List<GhostFrame> frames = GhostFrame.deserializeList(opt.get());
+                if (frames.isEmpty()) return;
+
+                scheduler.runOnEntity(player, () -> {
+                    if (!player.isOnline()) return;
+
+                    GhostFrame first = frames.get(0);
+                    Location spawnLoc = new Location(player.getWorld(), first.x(), first.y(), first.z(), first.yaw(), first.pitch());
+
+                    org.bukkit.entity.ArmorStand stand = player.getWorld().spawn(spawnLoc, org.bukkit.entity.ArmorStand.class, as -> {
+                        as.setVisible(false);
+                        as.setGravity(false);
+                        as.setCanMove(false);
+                        as.setBasePlate(false);
+                        as.setArms(true);
+                        as.setSmall(false);
+                        as.setPersistent(false);
+                        as.customName(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                            .deserialize("<aqua>👻 Ghost Run</aqua>"));
+                        as.setCustomNameVisible(true);
+
+                        // Equipment
+                        org.bukkit.inventory.EntityEquipment eq = as.getEquipment();
+                        eq.setHelmet(new org.bukkit.inventory.ItemStack(org.bukkit.Material.GLASS));
+                        eq.setChestplate(new org.bukkit.inventory.ItemStack(org.bukkit.Material.CHAINMAIL_CHESTPLATE));
+                        eq.setLeggings(new org.bukkit.inventory.ItemStack(org.bukkit.Material.CHAINMAIL_LEGGINGS));
+                        eq.setBoots(new org.bukkit.inventory.ItemStack(org.bukkit.Material.CHAINMAIL_BOOTS));
+                    });
+
+                    long startTime = System.currentTimeMillis();
+                    int[] frameCursor = {0};
+
+                    FoliaScheduler.RepeatingTask playbackTask = scheduler.runRepeatingOnEntity(stand, () -> {
+                        if (!player.isOnline() || !stand.isValid()) {
+                            stopPlayback(player);
+                            return;
+                        }
+
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        int idx = frameCursor[0];
+
+                        while (idx < frames.size() - 1 && frames.get(idx + 1).timestamp() <= elapsed) {
+                            idx++;
+                        }
+                        frameCursor[0] = idx;
+
+                        if (idx >= frames.size() - 1) {
+                            stopPlayback(player);
+                            return;
+                        }
+
+                        GhostFrame current = frames.get(idx);
+                        Location targetLoc = new Location(stand.getWorld(), current.x(), current.y(), current.z(), current.yaw(), current.pitch());
+                        stand.teleportAsync(targetLoc);
+                    }, 1L, 1L);
+
+                    playbacks.put(player.getUniqueId(), new PlaybackSession(stand, playbackTask));
+                });
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.WARNING, "Failed to load ghost frames for playback", e);
+            }
+        });
+    }
+
+    public void stopPlayback(@NotNull Player player) {
+        PlaybackSession session = playbacks.remove(player.getUniqueId());
+        if (session != null) {
+            session.task().cancel();
+            if (session.entity().isValid()) {
+                scheduler.runOnEntity(session.entity(), () -> session.entity().remove());
+            }
+        }
+    }
+
+    @Override
+    public boolean togglePlayerGhost(@NotNull UUID playerUuid) {
+        if (ghostDisabled.contains(playerUuid)) {
+            ghostDisabled.remove(playerUuid);
+            return true; // now enabled
+        } else {
+            ghostDisabled.add(playerUuid);
+            Player p = org.bukkit.Bukkit.getPlayer(playerUuid);
+            if (p != null) stopPlayback(p);
+            return false; // now disabled
+        }
+    }
+
+    @Override
+    public boolean isPlayerGhostEnabled(@NotNull UUID playerUuid) {
+        return !ghostDisabled.contains(playerUuid);
+    }
+
+    public boolean toggleGhost(@NotNull Player player) {
+        return togglePlayerGhost(player.getUniqueId());
+    }
+
+    public void cleanup() {
+        sessions.values().forEach(s -> s.task().cancel());
+        sessions.clear();
+        playbacks.values().forEach(p -> {
+            p.task().cancel();
+            if (p.entity().isValid()) p.entity().remove();
+        });
+        playbacks.clear();
+    }
+
     // -----------------------------------------------------------------------
-    // Private record
+    // Private records
     // -----------------------------------------------------------------------
 
     private record RecordingSession(
         @NotNull List<GhostFrame> frames,
+        @NotNull FoliaScheduler.RepeatingTask task
+    ) {}
+
+    private record PlaybackSession(
+        @NotNull org.bukkit.entity.ArmorStand entity,
         @NotNull FoliaScheduler.RepeatingTask task
     ) {}
 }

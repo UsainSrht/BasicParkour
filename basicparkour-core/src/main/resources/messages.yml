@@ -14,32 +14,73 @@
 
 messages:
 
-  # Displayed when a player starts a session (action bar)
-  course-start: "<gradient:green:aqua>▶ <bold>Basic Parkour</bold> started! Good luck!</gradient>"
+  # Displayed when a player starts a session
+  course-start:
+    actionbar: "<gradient:green:aqua>▶ <bold>Basic Parkour</bold> started on <course>! Good luck!</gradient>"
+    sound: "block.note_block.harp,1.0,1.2"
 
-  # Displayed when a checkpoint is reached (action bar)
-  checkpoint-reach: "<green>✔ Checkpoint <white>{checkpoint}</white> reached! <dark_gray>[<white>{time}</white>]</dark_gray>"
+  # Displayed when a checkpoint is reached
+  checkpoint-reach:
+    actionbar: "<green>✔ Checkpoint <white><checkpoint></white> reached! <dark_gray>[<white><time></white>]</dark_gray>"
+    sound: "block.note_block.bell,1.0,1.5"
 
-  # Displayed when the course is completed (chat message)
-  course-complete: "<gold><bold>🏁 Course complete!</bold></gold> <yellow>Time: <white>{time}</white></yellow>"
+  # Displayed when the course is completed
+  course-complete:
+    chat:
+      - "<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gold>"
+      - "<gold><bold>🏁 COURSE COMPLETE!</bold></gold>"
+      - "<yellow>Time: <white><time></white></yellow>"
+      - "<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gold>"
+    title:
+      title: "<gold><bold>COMPLETE!</bold></gold>"
+      subtitle: "<yellow>Time: <white><time></white></yellow>"
+      fade-in: 10
+      stay: 40
+      out: 10
+    sound: "ui.toast.challenge_complete,1.0,1.0"
 
-  # Displayed when the session is failed (action bar)
-  session-fail: "<red>✗ Failed! <gray>Respawning at last checkpoint…</gray></red>"
+  # Displayed when the session is failed
+  session-fail:
+    actionbar: "<red>✗ Failed! <gray>Respawning at last checkpoint…</gray></red>"
+    sound: "block.note_block.bass,1.0,0.6"
 
   # Displayed in addition to course-complete when a personal best is set
-  personal-best: "<aqua>🏆 <bold>New personal best!</bold> <white>{time}</white></aqua>"
+  personal-best:
+    chat:
+      - "<aqua>🏆 <bold>NEW PERSONAL BEST!</bold> <white><time></white></aqua>"
+    sound: "entity.player.levelup,1.0,1.2"
 
-  # Action bar timer display (shown every tick during a session)
-  timer-display: "<gray>⏱ <white>{time}</white>  <dark_gray>CP: <white>{checkpoint}</white>/<white>{total}</white></dark_gray>"
+  # Action bar timer display (shown during a session)
+  timer-display:
+    actionbar: "<gray>⏱ <white><time></white>  <dark_gray>CP: <white><checkpoint></white>/<white><total></white></dark_gray>"
 
-  # Leaderboard header (chat)
-  leaderboard-header: "<gold>━━━ <bold>Leaderboard — {course}</bold> ━━━</gold>"
+  # Leaderboard
+  leaderboard-header: "<gold>━━━ <bold>Leaderboard — <course></bold> ━━━</gold>"
+  leaderboard-entry: "  <gray><rank>. <white><player></white> — <yellow><time></yellow></gray>"
 
-  # Each leaderboard row (chat)
-  leaderboard-entry: "  <gray>{rank}. <white>{player}</white> — <yellow>{time}</yellow></gray>"
-
-  # Error: course not found
+  # Errors & session state
   no-course: "<red>No course found with that ID.</red>"
-
-  # Error: player already in a session
   already-in-session: "<yellow>You are already running a course! Use <white>/basicparkour leave</white> to exit.</yellow>"
+  session-leave: "<gray>You left the course.</gray>"
+  not-in-session: "<yellow>You are not in an active parkour session.</yellow>"
+  time-limit-exceeded:
+    chat: "<red>⌛ Time limit exceeded! Course failed.</red>"
+    sound: "block.anvil.land,0.8,0.8"
+
+  # Admin & setup
+  reload-success: "<green>Basic Parkour configuration and courses reloaded.</green>"
+  reset-pb-success: "<green>Personal best records reset for <player>.</green>"
+  wand-given:
+    chat: "<green>Parkour editor wand received. Left-click a block for Pos 1, Right-click for Pos 2.</green>"
+    sound: "item.bundle.drop_contents,1.0,1.2"
+  pos1-set: "<aqua>Position 1 set to <white><x>, <y>, <z></white></aqua>"
+  pos2-set: "<aqua>Position 2 set to <white><x>, <y>, <z></white></aqua>"
+  course-created: "<green>Course <white><course></white> created! Now use wand and setstart/setend/addcp.</green>"
+  start-set: "<green>Start region and spawn location set for <white><course></white>.</green>"
+  endSet: "<green>End region set for <white><course></white>.</green>"
+  portal-set: "<green>Portal region set for <white><course></white>.</green>"
+  checkpoint-added: "<green>Checkpoint #<index> added to <white><course></white>.</green>"
+  course-saved:
+    chat: "<green>Course <white><course></white> successfully saved and loaded!</green>"
+    sound: "entity.experience_orb.pickup,1.0,1.0"
+  ghost-toggled: "<gray>Ghost run display is now: <white><state></white>.</gray>"

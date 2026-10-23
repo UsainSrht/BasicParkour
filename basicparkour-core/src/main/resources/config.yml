@@ -57,6 +57,8 @@ commands:
     admin: basicparkour.admin
   # Sub-command literal names (rename any of these freely).
   subcommands:
+    menu: menu
+    ghost: ghost
     join: join
     leave: leave
     top: top
@@ -66,6 +68,26 @@ commands:
     generate: generate
     setentry: setentry
     removeentry: removeentry
+    wand: wand
+    create: create
+    setstart: setstart
+    setend: setend
+    setportal: setportal
+    addcp: addcp
+    save: save
+
+# ─── Editor ───────────────────────────────────────────────────────────────────
+# In-game parkour course builder & selection wand configuration.
+editor:
+  wand:
+    material: BLAZE_ROD
+    custom_name: "<gradient:#ff9a9e:#fecfef><b>Parkour Selection Wand</b></gradient>"
+    lore:
+      - "<gray>Left-click block: <yellow>Set Position 1</yellow></gray>"
+      - "<gray>Right-click block: <yellow>Set Position 2</yellow></gray>"
+      - ""
+      - "<yellow>Use /basicparkour setstart, setend, addcp to build!</yellow>"
+    enchantment_glint_override: true
 
 # ─── Generator ────────────────────────────────────────────────────────────────
 # Controls the dynamic parkour generator system.

@@ -72,7 +72,17 @@ public final class PlayerMoveListener implements Listener {
         ParkourCourse course = session.getCourse();
 
         // ── 1. Void check ────────────────────────────────────────────────────
-        if (to.getY() < to.getWorld().getMinHeight() - 5) {
+        double failY = to.getWorld().getMinHeight() - 5;
+        if (course.getMinY().isPresent()) {
+            failY = course.getMinY().get();
+        } else if (course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse) {
+            me.usainsrht.basicparkour.api.course.Checkpoint nextCp = session.getNextCheckpoint().orElse(null);
+            if (nextCp != null) {
+                failY = nextCp.getSpawnLocation().getY() - 3.0;
+            }
+        }
+        
+        if (to.getY() < failY) {
             sessionManager.failSession(player, ParkourSession.FailReason.VOID);
             return;
         }
@@ -92,6 +102,25 @@ public final class PlayerMoveListener implements Listener {
 
         // ── 4. Block modifier check ───────────────────────────────────────────
         checkModifiers(player, session, to);
+        if (session.getState() != SessionState.ACTIVE) return;
+
+        // ── 5. Blocklist check ────────────────────────────────────────────────
+        Block feetBlock = to.getBlock().getRelative(0, -1, 0);
+        if (!feetBlock.isEmpty()) {
+            java.util.Set<org.bukkit.Material> blockList = course.getBlockList();
+            boolean isListed = blockList.contains(feetBlock.getType());
+            if (course.getBlockListMode() == me.usainsrht.basicparkour.api.course.BlockListMode.BLACKLIST) {
+                if (isListed) {
+                    sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST);
+                    return;
+                }
+            } else if (course.getBlockListMode() == me.usainsrht.basicparkour.api.course.BlockListMode.WHITELIST) {
+                if (!isListed && !blockList.isEmpty()) {
+                    sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST);
+                    return;
+                }
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -136,8 +165,13 @@ public final class PlayerMoveListener implements Listener {
             // Ensure same world
             if (!course.getWorldName().equals(to.getWorld().getName())) continue;
             if (course.getStartRegion().contains(to)) {
-                sessionManager.startSession(player, course);
+                boolean shouldTeleport = !course.getStartLocations().isEmpty();
+                sessionManager.startSession(player, course, shouldTeleport);
                 return; // Start at most one course
+            }
+            if (course.getPortalRegion().isPresent() && course.getPortalRegion().get().contains(to)) {
+                sessionManager.startSession(player, course, course.isPortalTeleport());
+                return;
             }
         }
     }

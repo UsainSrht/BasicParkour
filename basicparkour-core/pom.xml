@@ -52,6 +52,29 @@
             <groupId>org.bstats</groupId>
             <artifactId>bstats-bukkit</artifactId>
         </dependency>
+
+        <!-- YamlMessageAPI (shaded) -->
+        <dependency>
+            <groupId>me.usainsrht</groupId>
+            <artifactId>YamlMessageAPI</artifactId>
+        </dependency>
+
+        <!-- ItemAPI (shaded) -->
+        <dependency>
+            <groupId>me.usainsrht.itemapi</groupId>
+            <artifactId>yamlitem</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>me.usainsrht.itemapi</groupId>
+            <artifactId>itemtext</artifactId>
+        </dependency>
+
+        <!-- PlaceholderAPI (optional provided) -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>

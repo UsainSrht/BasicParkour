@@ -36,6 +36,10 @@
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
+        <repository>
+            <id>extendedclip</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+        </repository>
     </repositories>
 
     <dependencyManagement>
@@ -85,6 +89,33 @@
                 <artifactId>bstats-bukkit</artifactId>
                 <version>${bstats.version}</version>
                 <scope>compile</scope>
+            </dependency>
+
+            <!-- YamlMessageAPI -->
+            <dependency>
+                <groupId>me.usainsrht</groupId>
+                <artifactId>YamlMessageAPI</artifactId>
+                <version>1.0.0</version>
+            </dependency>
+
+            <!-- ItemAPI -->
+            <dependency>
+                <groupId>me.usainsrht.itemapi</groupId>
+                <artifactId>yamlitem</artifactId>
+                <version>1.0.14</version>
+            </dependency>
+            <dependency>
+                <groupId>me.usainsrht.itemapi</groupId>
+                <artifactId>itemtext</artifactId>
+                <version>1.0.14</version>
+            </dependency>
+
+            <!-- PlaceholderAPI -->
+            <dependency>
+                <groupId>me.clip</groupId>
+                <artifactId>placeholderapi</artifactId>
+                <version>2.11.6</version>
+                <scope>provided</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

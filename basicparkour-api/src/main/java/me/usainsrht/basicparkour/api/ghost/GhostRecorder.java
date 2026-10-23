@@ -54,4 +54,24 @@ public interface GhostRecorder {
      * @return whether recording is active
      */
     boolean isRecording(@NotNull Player player);
+
+    /**
+     * Toggles ghost run visibility for the given player UUID.
+     *
+     * @param playerUuid the player UUID
+     * @return {@code true} if ghosts are now enabled, {@code false} if disabled
+     */
+    default boolean togglePlayerGhost(@NotNull UUID playerUuid) {
+        return true;
+    }
+
+    /**
+     * Returns whether ghosts are enabled for the given player UUID.
+     *
+     * @param playerUuid the player UUID
+     * @return true if enabled
+     */
+    default boolean isPlayerGhostEnabled(@NotNull UUID playerUuid) {
+        return true;
+    }
 }

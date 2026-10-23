@@ -12,8 +12,11 @@ import org.bukkit.Material;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Unmodifiable;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Concrete implementation of {@link GeneratedParkourCourse}.
@@ -56,7 +59,7 @@ public final class GeneratedParkourCourseImpl implements GeneratedParkourCourse 
         this.worldName    = worldName;
         this.startRegion  = startRegion;
         this.endRegion    = endRegion;
-        this.checkpoints  = List.copyOf(checkpoints);
+        this.checkpoints  = new java.util.concurrent.CopyOnWriteArrayList<>(checkpoints);
     }
 
     // ── ParkourCourse ──────────────────────────────────────────────────────
@@ -66,7 +69,14 @@ public final class GeneratedParkourCourseImpl implements GeneratedParkourCourse 
     @Override @NotNull public String getWorldName()       { return worldName; }
     @Override @NotNull public CourseRegion getStartRegion() { return startRegion; }
     @Override @NotNull public CourseRegion getEndRegion()   { return endRegion; }
-    @Override @NotNull @Unmodifiable public List<Checkpoint> getCheckpoints() { return checkpoints; }
+    @Override @NotNull @Unmodifiable public List<Location> getStartLocations() { return List.of(); }
+    @Override @NotNull public Optional<CourseRegion> getPortalRegion() { return Optional.empty(); }
+    @Override public boolean isPortalTeleport() { return false; }
+    @Override @NotNull @Unmodifiable public Set<Material> getBlockList() { return Set.of(); }
+    @Override @NotNull public me.usainsrht.basicparkour.api.course.BlockListMode getBlockListMode() { return me.usainsrht.basicparkour.api.course.BlockListMode.BLACKLIST; }
+    @Override @NotNull public Optional<Integer> getMinY() { return Optional.empty(); }
+    @Override @NotNull public me.usainsrht.basicparkour.api.course.DieMode getDieMode() { return me.usainsrht.basicparkour.api.course.DieMode.RESTART_DIE; }
+    @Override @NotNull @Unmodifiable public List<Checkpoint> getCheckpoints() { return Collections.unmodifiableList(checkpoints); }
 
     @Override @NotNull @Unmodifiable
     public Map<Material, String> getModifierOverrides() {
@@ -86,18 +96,11 @@ public final class GeneratedParkourCourseImpl implements GeneratedParkourCourse 
     // ── Helpers ────────────────────────────────────────────────────────────
 
     /**
-     * Adds a checkpoint to the live list (used by the sliding window generator
-     * to append new platforms to an ongoing infinite run).
-     * The list is re-copied to remain unmodifiable from the outside.
-     *
-     * <p><strong>Note:</strong> this is only called from the generator thread
-     * which holds exclusive access to the checkpoint list while the window advances.</p>
+     * Appends a checkpoint to the live list when a new platform is placed
+     * by the sliding window generator.
      */
     public void appendCheckpoint(@NotNull Checkpoint cp) {
-        // The checkpoints field is List.copyOf, so we need a mutable wrapper.
-        // GeneratorManagerImpl holds the mutable list and passes a view here.
-        throw new UnsupportedOperationException(
-            "Use GeneratorManagerImpl.appendCheckpoint(instanceId, cp) instead.");
+        checkpoints.add(cp);
     }
 
     @Override
