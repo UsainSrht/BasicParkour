@@ -72,6 +72,7 @@ public final class BasicParkourPlugin extends JavaPlugin {
     private me.usainsrht.basicparkour.core.tab.TabHook tabHook;
     private me.usainsrht.basicparkour.core.hologram.HologramManager hologramManager;
     private me.usainsrht.basicparkour.core.npc.NpcManager npcManager;
+    private me.usainsrht.basicparkour.core.listener.GeneratorEntryListener entryListener;
 
     // ────────────────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ public final class BasicParkourPlugin extends JavaPlugin {
         // (no event needed)
 
         // ── 10b. Generator entry listener ────────────────────────────────────
-        GeneratorEntryListener entryListener = new GeneratorEntryListener(this, generatorManager);
+        entryListener = new GeneratorEntryListener(this, generatorManager);
         pm.registerEvents(entryListener, this);
 
         // ── 10c. Hologram & NPC Managers ─────────────────────────────────────
@@ -215,44 +216,107 @@ public final class BasicParkourPlugin extends JavaPlugin {
     // -----------------------------------------------------------------------
 
     /**
-     * Reloads configuration files and course definitions without restarting the
-     * plugin.
-     * Active sessions are preserved.
+     * Safely and asynchronously reloads the plugin:
+     * 1. Safely stops every active parkour session, making players leave cleanly and restoring their states.
+     * 2. Shuts down active generator instances and restores placed blocks.
+     * 3. Dispatches asynchronous loading of configs, courses, generator templates, and database.
+     * 4. Dispatches back to the server/global thread to apply the reloaded courses, templates, holograms, NPCs, and menus.
+     *
+     * @return CompletableFuture completing when reload has finished.
      */
+    public java.util.concurrent.CompletableFuture<Void> reloadPluginAsync() {
+        java.util.concurrent.CompletableFuture<Void> future = new java.util.concurrent.CompletableFuture<>();
+
+        // Step 1: Safely stop all sessions and make players leave on their region/entity threads
+        scheduler.runGlobal(() -> {
+            try {
+                if (sessionManager != null) {
+                    sessionManager.stopAllSessions();
+                }
+                if (generatorManager != null) {
+                    generatorManager.shutdown();
+                }
+
+                // Step 2: Async file I/O & parsing
+                scheduler.runAsync(() -> {
+                    try {
+                        reloadConfig();
+
+                        java.io.File messagesFile = new java.io.File(getDataFolder(), "messages.yml");
+                        org.bukkit.configuration.file.YamlConfiguration newMessages = messagesFile.exists()
+                                ? org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(messagesFile)
+                                : null;
+
+                        java.io.File menusFile = new java.io.File(getDataFolder(), "menus.yml");
+                        org.bukkit.configuration.file.YamlConfiguration newMenus = menusFile.exists()
+                                ? org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(menusFile)
+                                : null;
+
+                        CourseLoader loader = new CourseLoader(this);
+                        var newCourses = loader.loadAll();
+
+                        GeneratorTemplateLoader templateLoader = new GeneratorTemplateLoader(this);
+                        var newTemplates = templateLoader.loadAll();
+
+                        // Step 3: Apply reloaded state on global/main thread
+                        scheduler.runGlobal(() -> {
+                            try {
+                                if (newMessages != null) {
+                                    messages.reload(newMessages);
+                                }
+                                if (newMenus != null) {
+                                    menuConfig.reload(newMenus);
+                                }
+                                if (hotbarManager != null) {
+                                    hotbarManager.load();
+                                }
+
+                                // Re-register courses
+                                new java.util.ArrayList<>(basicParkourAPI.getCourseRegistry().getCourses())
+                                        .forEach(c -> basicParkourAPI.getCourseRegistry().unregisterCourse(c.getId()));
+                                basicParkourAPI.getCourseRegistry().loadAll(newCourses);
+
+                                // Reload generator templates
+                                if (generatorManager != null) {
+                                    generatorManager.loadTemplates(newTemplates);
+                                }
+                                if (entryListener != null) {
+                                    entryListener.reloadEntries();
+                                }
+
+                                if (hologramManager != null) {
+                                    hologramManager.selectProvider();
+                                    hologramManager.load();
+                                }
+                                if (npcManager != null) {
+                                    npcManager.load();
+                                    npcManager.refreshAllTopHolders();
+                                }
+
+                                getLogger().info("[BasicParkour] Safely reloaded. Courses: "
+                                        + basicParkourAPI.getCourseRegistry().getCourses().size()
+                                        + ", Generator templates: "
+                                        + (generatorManager != null ? generatorManager.getTemplates().size() : 0));
+
+                                future.complete(null);
+                            } catch (Throwable t) {
+                                future.completeExceptionally(t);
+                            }
+                        });
+                    } catch (Throwable t) {
+                        future.completeExceptionally(t);
+                    }
+                });
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+        });
+
+        return future;
+    }
+
     public void reloadPlugin() {
-        reloadConfig();
-        java.io.File messagesFile = new java.io.File(getDataFolder(), "messages.yml");
-        if (messagesFile.exists()) {
-            messages.reload(org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(messagesFile));
-        }
-
-        java.io.File menusFile = new java.io.File(getDataFolder(), "menus.yml");
-        if (menusFile.exists()) {
-            menuConfig.reload(org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(menusFile));
-        }
-
-        if (hotbarManager != null) {
-            hotbarManager.load();
-        }
-
-        if (hologramManager != null) {
-            hologramManager.selectProvider();
-            hologramManager.load();
-        }
-        if (npcManager != null) {
-            npcManager.load();
-            npcManager.refreshAllTopHolders();
-        }
-
-        // Re-load courses
-        CourseLoader loader = new CourseLoader(this);
-        // Unregister existing and re-register
-        new java.util.ArrayList<>(basicParkourAPI.getCourseRegistry().getCourses())
-                .forEach(c -> basicParkourAPI.getCourseRegistry().unregisterCourse(c.getId()));
-        basicParkourAPI.getCourseRegistry().loadAll(loader.loadAll());
-
-        getLogger().info("[BasicParkour] Reloaded. Courses: "
-                + basicParkourAPI.getCourseRegistry().getCourses().size());
+        reloadPluginAsync().join();
     }
 
     // -----------------------------------------------------------------------
@@ -332,5 +396,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
 
     public me.usainsrht.basicparkour.core.hotbar.HotbarManager getHotbarManager() {
         return hotbarManager;
+    }
+
+    public me.usainsrht.basicparkour.core.listener.GeneratorEntryListener getGeneratorEntryListener() {
+        return entryListener;
     }
 }

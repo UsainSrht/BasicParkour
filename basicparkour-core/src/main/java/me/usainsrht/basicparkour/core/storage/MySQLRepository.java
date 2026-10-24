@@ -83,12 +83,22 @@ public final class MySQLRepository implements ParkourRepository {
                     course_id   VARCHAR(64)  NOT NULL,
                     time_ms     BIGINT       NOT NULL,
                     recorded_at BIGINT       NOT NULL,
+                    blocks      INT          NOT NULL DEFAULT 0,
                     PRIMARY KEY (uuid, course_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """);
+            try {
+                stmt.executeUpdate("ALTER TABLE basicparkour_records ADD COLUMN blocks INT NOT NULL DEFAULT 0");
+            } catch (SQLException ignored) {
+                // Column already exists
+            }
             stmt.executeUpdate("""
                 CREATE INDEX IF NOT EXISTS idx_course_time
                     ON basicparkour_records (course_id, time_ms)
+                """);
+            stmt.executeUpdate("""
+                CREATE INDEX IF NOT EXISTS idx_course_blocks
+                    ON basicparkour_records (course_id, blocks, time_ms)
                 """);
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS basicparkour_ghosts (
@@ -122,34 +132,56 @@ public final class MySQLRepository implements ParkourRepository {
     public CompletableFuture<Boolean> saveRecord(@NotNull PlayerRecord record) {
         return CompletableFuture.supplyAsync(() -> {
             try (Connection conn = dataSource.getConnection()) {
-                // Read current best
-                long existingBest = Long.MAX_VALUE;
+                long existingTime = Long.MAX_VALUE;
+                int existingBlocks = 0;
+                boolean exists = false;
                 try (PreparedStatement sel = conn.prepareStatement(
-                    "SELECT time_ms FROM basicparkour_records WHERE uuid = ? AND course_id = ?")) {
+                    "SELECT time_ms, blocks FROM basicparkour_records WHERE uuid = ? AND course_id = ?")) {
                     sel.setString(1, record.playerUuid().toString());
                     sel.setString(2, record.courseId());
                     ResultSet rs = sel.executeQuery();
-                    if (rs.next()) existingBest = rs.getLong(1);
+                    if (rs.next()) {
+                        exists = true;
+                        existingTime = rs.getLong(1);
+                        existingBlocks = rs.getInt(2);
+                    }
                 }
-                boolean newBest = record.timeMs() < existingBest;
-                if (newBest) {
+
+                boolean isNewBest;
+                if (record.blocks() > 0) {
+                    if (!exists) {
+                        isNewBest = true;
+                    } else if (record.blocks() > existingBlocks) {
+                        isNewBest = true;
+                    } else if (record.blocks() == existingBlocks) {
+                        isNewBest = record.timeMs() < existingTime;
+                    } else {
+                        isNewBest = false;
+                    }
+                } else {
+                    isNewBest = !exists || record.timeMs() < existingTime;
+                }
+
+                if (isNewBest) {
                     try (PreparedStatement upsert = conn.prepareStatement("""
-                        INSERT INTO basicparkour_records (uuid, player_name, course_id, time_ms, recorded_at)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO basicparkour_records (uuid, player_name, course_id, time_ms, recorded_at, blocks)
+                        VALUES (?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE
                             player_name = VALUES(player_name),
-                            time_ms = IF(VALUES(time_ms) < time_ms, VALUES(time_ms), time_ms),
-                            recorded_at = IF(VALUES(time_ms) < time_ms, VALUES(recorded_at), recorded_at)
+                            time_ms = VALUES(time_ms),
+                            recorded_at = VALUES(recorded_at),
+                            blocks = VALUES(blocks)
                         """)) {
                         upsert.setString(1, record.playerUuid().toString());
                         upsert.setString(2, record.playerName());
                         upsert.setString(3, record.courseId());
                         upsert.setLong(4, record.timeMs());
                         upsert.setLong(5, record.recordedAt());
+                        upsert.setInt(6, record.blocks());
                         upsert.executeUpdate();
                     }
                 }
-                return newBest;
+                return isNewBest;
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to save record", e);
             }
@@ -180,8 +212,8 @@ public final class MySQLRepository implements ParkourRepository {
         return CompletableFuture.supplyAsync(() -> {
             try (Connection conn = dataSource.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT uuid, player_name, time_ms FROM basicparkour_records " +
-                     "WHERE course_id = ? ORDER BY time_ms ASC LIMIT ?")) {
+                     "SELECT uuid, player_name, time_ms, blocks FROM basicparkour_records " +
+                     "WHERE course_id = ? ORDER BY (CASE WHEN blocks > 0 THEN 1 ELSE 0 END) DESC, blocks DESC, time_ms ASC LIMIT ?")) {
                 stmt.setString(1, courseId);
                 stmt.setInt(2, limit);
                 ResultSet rs = stmt.executeQuery();
@@ -191,7 +223,8 @@ public final class MySQLRepository implements ParkourRepository {
                     board.add(new LeaderboardEntry(rank++,
                         UUID.fromString(rs.getString("uuid")),
                         rs.getString("player_name"),
-                        rs.getLong("time_ms")));
+                        rs.getLong("time_ms"),
+                        rs.getInt("blocks")));
                 }
                 return Collections.unmodifiableList(board);
             } catch (SQLException e) {
@@ -323,12 +356,17 @@ public final class MySQLRepository implements ParkourRepository {
 
     @NotNull
     private static PlayerRecord mapRecord(@NotNull ResultSet rs) throws SQLException {
+        int blocks = 0;
+        try {
+            blocks = rs.getInt("blocks");
+        } catch (SQLException ignored) {}
         return new PlayerRecord(
             UUID.fromString(rs.getString("uuid")),
             rs.getString("player_name"),
             rs.getString("course_id"),
             rs.getLong("time_ms"),
-            rs.getLong("recorded_at")
+            rs.getLong("recorded_at"),
+            blocks
         );
     }
 }

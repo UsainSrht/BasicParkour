@@ -58,6 +58,9 @@ public record GeneratorTemplate(
     @Nullable Long                seed,
     @NotNull  String              leaderboardCourseId,
 
+    // ── Platform shapes ───────────────────────────────────────────────────
+    @NotNull @Unmodifiable List<String> platformShapes,
+
     // ── Difficulty overrides (NaN / -1 = use difficulty defaults) ─────────
               int                 minGap,
               int                 maxGap,
@@ -71,10 +74,65 @@ public record GeneratorTemplate(
     @NotNull @Unmodifiable Map<Material, String> modifierOverrides
 ) {
     public GeneratorTemplate {
+        platformShapes = List.copyOf(platformShapes);
         modifierOverrides = Map.copyOf(modifierOverrides);
     }
 
+    public GeneratorTemplate(
+        @NotNull  String             id,
+        @NotNull  String             displayName,
+        @NotNull  GeneratorDifficulty difficulty,
+        @NotNull  GeneratorTheme      theme,
+        @NotNull  LengthType          lengthType,
+                  int                 fixedLength,
+        @NotNull  BlockMode           blockMode,
+                  int                 slidingWindowAhead,
+                  int                 cleanupDelaySeconds,
+        @NotNull  EntryMode           entryMode,
+        @Nullable String              dedicatedWorldName,
+                  int                 dedicatedWorldRadius,
+                  boolean             shared,
+        @Nullable Long                seed,
+        @NotNull  String              leaderboardCourseId,
+                  int                 minGap,
+                  int                 maxGap,
+                  int                 minHeightDelta,
+                  int                 maxHeightDelta,
+                  int                 platformMinSize,
+                  int                 platformMaxSize,
+                  double              obstacleChance,
+                  double              modifierChance,
+        @NotNull Map<Material, String> modifierOverrides
+    ) {
+        this(
+            id, displayName, difficulty, theme, lengthType, fixedLength,
+            blockMode, slidingWindowAhead, cleanupDelaySeconds,
+            entryMode, dedicatedWorldName, dedicatedWorldRadius, shared, seed,
+            leaderboardCourseId, List.of(),
+            minGap, maxGap, minHeightDelta, maxHeightDelta,
+            platformMinSize, platformMaxSize, obstacleChance, modifierChance,
+            modifierOverrides
+        );
+    }
+
     // ── Resolved parameter helpers (merges difficulty defaults + overrides) ─
+
+    /** Resolved platform shapes. */
+    public @NotNull List<String> resolvedPlatformShapes() {
+        if (!platformShapes.isEmpty()) {
+            return platformShapes;
+        }
+        int min = resolvedPlatformMinSize();
+        int max = resolvedPlatformMaxSize();
+        if (min == 1 && max == 1) return List.of("1x1");
+        if (min == 2 && max == 2) return List.of("2x2");
+        if (min >= 3 && max >= 3) return List.of("3x3");
+        List<String> list = new java.util.ArrayList<>();
+        if (min <= 1) list.add("1x1");
+        if (min <= 2 && max >= 2) list.add("2x2");
+        if (max >= 3) list.add("3x3");
+        return list.isEmpty() ? List.of("1x1") : list;
+    }
 
     /** Resolved minimum gap, accounting for difficulty defaults. */
     public int resolvedMinGap() {

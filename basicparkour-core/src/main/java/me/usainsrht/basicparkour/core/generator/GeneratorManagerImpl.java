@@ -328,9 +328,10 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 // Teleport + start session on entity thread
                 scheduler.runOnEntity(player, () -> {
                     Location spawn = data.platforms().get(0).checkpoint().getSpawnLocation();
+                    final Location origin = player.getLocation().clone();
                     player.teleportAsync(spawn).thenRun(() ->
                         scheduler.runOnEntity(player, () -> {
-                            ParkourSession session = sessionManager.startSession(player, course);
+                            ParkourSession session = sessionManager.startSession(player, course, true, origin);
                             sessionFuture.complete(session);
 
                             if (template.blockMode() == BlockMode.SLIDING_WINDOW) {

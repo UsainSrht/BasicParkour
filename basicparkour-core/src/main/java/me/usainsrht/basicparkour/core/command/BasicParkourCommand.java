@@ -10,6 +10,7 @@ import me.usainsrht.basicparkour.api.BasicParkourAPI;
 import me.usainsrht.basicparkour.api.course.ParkourCourse;
 import me.usainsrht.basicparkour.api.generator.GeneratorTemplate;
 import me.usainsrht.basicparkour.api.storage.LeaderboardEntry;
+import me.usainsrht.basicparkour.api.storage.PlayerRecord;
 import me.usainsrht.basicparkour.core.BasicParkourPlugin;
 import me.usainsrht.basicparkour.core.editor.EditorManager;
 import me.usainsrht.basicparkour.core.generator.GeneratorManagerImpl;
@@ -273,6 +274,38 @@ public final class BasicParkourCommand {
                     cmdWand(ctx.getSource().getSender());
                     return Command.SINGLE_SUCCESS;
                 }));
+
+        // pos1 / pos2 (admin) — set selection corners without the wand
+        root.then(Commands.literal(cfg.getCmdPos1())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .executes(ctx -> {
+                    cmdPos(ctx.getSource().getSender(), 1);
+                    return Command.SINGLE_SUCCESS;
+                }));
+        root.then(Commands.literal(cfg.getCmdPos2())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .executes(ctx -> {
+                    cmdPos(ctx.getSource().getSender(), 2);
+                    return Command.SINGLE_SUCCESS;
+                }));
+
+        // endless [templateId] — player-facing generative parkour entry
+        root.then(Commands.literal(cfg.getCmdEndless())
+                .executes(ctx -> {
+                    cmdEndless(ctx.getSource().getSender(), null);
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("templateId", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                                    .forEach(t -> builder.suggest(t.id()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            cmdEndless(ctx.getSource().getSender(),
+                                    StringArgumentType.getString(ctx, "templateId"));
+                            return Command.SINGLE_SUCCESS;
+                        })));
 
         // create <id> <name> (admin)
         root.then(Commands.literal(cfg.getCmdCreate())
@@ -588,10 +621,18 @@ public final class BasicParkourCommand {
                     }
                     plugin.getScheduler().runGlobal(() -> {
                         for (LeaderboardEntry entry : board) {
-                            plugin.getMessages().getLeaderboardEntry().send(sender,
-                                    Placeholder.parsed("rank", String.valueOf(entry.rank())),
-                                    Placeholder.parsed("player", entry.playerName()),
-                                    Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
+                            if (entry.blocks() > 0) {
+                                plugin.getMessages().getLeaderboardEntryEndless().send(sender,
+                                        Placeholder.parsed("rank", String.valueOf(entry.rank())),
+                                        Placeholder.parsed("player", entry.playerName()),
+                                        Placeholder.parsed("blocks", String.valueOf(entry.blocks())),
+                                        Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
+                            } else {
+                                plugin.getMessages().getLeaderboardEntry().send(sender,
+                                        Placeholder.parsed("rank", String.valueOf(entry.rank())),
+                                        Placeholder.parsed("player", entry.playerName()),
+                                        Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
+                            }
                         }
                     });
                 });
@@ -609,9 +650,15 @@ public final class BasicParkourCommand {
                         return;
                     }
                     send(player, "<aqua>Your personal bests:</aqua>");
-                    records.forEach(r -> send(player,
-                            "  <gray>%s: <white>%s</white></gray>"
-                                    .formatted(r.courseId(), TimerFormatter.format(r.timeMs()))));
+                    records.forEach(r -> {
+                        if (r.blocks() > 0) {
+                            send(player, "  <gray>%s: <green>%d blocks</green> <dark_gray>(<white>%s</white>)</dark_gray></gray>"
+                                    .formatted(r.courseId(), r.blocks(), TimerFormatter.format(r.timeMs())));
+                        } else {
+                            send(player, "  <gray>%s: <white>%s</white></gray>"
+                                    .formatted(r.courseId(), TimerFormatter.format(r.timeMs())));
+                        }
+                    });
                 }));
     }
 
@@ -623,8 +670,14 @@ public final class BasicParkourCommand {
         plugin.getRepository().getPersonalBest(player.getUniqueId(), courseId)
                 .thenAccept(opt -> plugin.getScheduler().runOnEntity(player, () -> {
                     if (opt.isPresent()) {
-                        send(player, "<aqua>Your PB on <white>" + courseId + "</white>: "
-                                + TimerFormatter.format(opt.get().timeMs()) + "</aqua>");
+                        PlayerRecord rec = opt.get();
+                        if (rec.blocks() > 0) {
+                            send(player, "<aqua>Your PB on <white>" + courseId + "</white>: <green>"
+                                    + rec.blocks() + " blocks</green> <dark_gray>(" + TimerFormatter.format(rec.timeMs()) + ")</dark_gray></aqua>");
+                        } else {
+                            send(player, "<aqua>Your PB on <white>" + courseId + "</white>: "
+                                    + TimerFormatter.format(rec.timeMs()) + "</aqua>");
+                        }
                     } else {
                         send(player, "<gray>No record on course: " + courseId + "</gray>");
                     }
@@ -632,8 +685,17 @@ public final class BasicParkourCommand {
     }
 
     private void cmdReload(@NotNull CommandSender sender) {
-        plugin.reloadPlugin();
-        plugin.getMessages().getReloadSuccess().send(sender);
+        send(sender, "<gray>Reloading Basic Parkour...</gray>");
+        plugin.reloadPluginAsync().thenRun(() -> {
+            plugin.getScheduler().runGlobal(() -> {
+                plugin.getMessages().getReloadSuccess().send(sender);
+            });
+        }).exceptionally(ex -> {
+            plugin.getScheduler().runGlobal(() -> {
+                send(sender, "<red>An error occurred while reloading: " + ex.getMessage() + "</red>");
+            });
+            return null;
+        });
     }
 
     private void cmdResetPb(@NotNull CommandSender sender, @NotNull String playerName) {
@@ -740,6 +802,52 @@ public final class BasicParkourCommand {
         }
         player.getInventory().addItem(editorManager.createWandItem());
         plugin.getMessages().getWandGiven().send((net.kyori.adventure.audience.Audience) player);
+    }
+
+    private void cmdPos(@NotNull CommandSender sender, int which) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can set selection positions."));
+            return;
+        }
+        if (editorManager == null) {
+            send(player, "<red>Editor is not ready.</red>");
+            return;
+        }
+        Location loc = player.getLocation().getBlock().getLocation();
+        if (which == 1) editorManager.setPos1(player, loc); else editorManager.setPos2(player, loc);
+        send(player, "<green>Position " + which + " set to <white>(" + loc.getBlockX() + ", "
+                + loc.getBlockY() + ", " + loc.getBlockZ() + ")</white> in <aqua>"
+                + loc.getWorld().getName() + "</aqua>.</green>");
+    }
+
+    private void cmdEndless(@NotNull CommandSender sender, @org.jetbrains.annotations.Nullable String templateId) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can start a generated run."));
+            return;
+        }
+        if (sessionManager.getSession(player).isPresent()) {
+            plugin.getMessages().getAlreadyInSession().send((net.kyori.adventure.audience.Audience) player);
+            return;
+        }
+        var gm = BasicParkourAPI.get().getGeneratorManager();
+        if (templateId == null) {
+            var templates = gm.getTemplates();
+            if (templates.isEmpty()) {
+                send(player, "<red>No generator templates are available.</red>");
+                return;
+            }
+            if (templates.size() > 1) {
+                new me.usainsrht.basicparkour.core.gui.GeneratorSelectorGUI(plugin, player).open();
+                return;
+            }
+            templateId = templates.iterator().next().id();
+        }
+        Optional<GeneratorTemplate> tplOpt = gm.getTemplate(templateId);
+        if (tplOpt.isEmpty()) {
+            send(player, "<red>Unknown generator template: " + templateId + "</red>");
+            return;
+        }
+        gm.generate(player, tplOpt.get());
     }
 
     private void cmdCreate(@NotNull CommandSender sender, @NotNull String id, @NotNull String name) {
@@ -982,11 +1090,13 @@ public final class BasicParkourCommand {
         send(sender, "<gray>/" + r + " " + cfg.getCmdLeave() + "</gray> — exit current session");
         send(sender, "<gray>/" + r + " " + cfg.getCmdRestart() + "</gray> — restart active course");
         send(sender, "<gray>/" + r + " " + cfg.getCmdCheckpoint() + "</gray> — teleport to last checkpoint");
+        send(sender, "<gray>/" + r + " " + cfg.getCmdEndless() + " [templateId]</gray> — start a generated (endless) run");
         send(sender, "<gray>/" + r + " " + cfg.getCmdTop() + " <courseId></gray> — view leaderboard");
         send(sender, "<gray>/" + r + " " + cfg.getCmdPb() + " [courseId]</gray> — your personal bests");
         if (sender.hasPermission(cfg.getPermAdmin())) {
             send(sender, "<gold>━━━ Admin / Editor ━━━</gold>");
             send(sender, "<gray>/" + r + " " + cfg.getCmdWand() + "</gray> — get selection wand");
+            send(sender, "<gray>/" + r + " " + cfg.getCmdPos1() + " / " + cfg.getCmdPos2() + "</gray> — set selection corners at your feet");
             send(sender, "<gray>/" + r + " " + cfg.getCmdCreate() + " <id> <name></gray> — create draft course");
             send(sender, "<gray>/" + r + " " + cfg.getCmdSetStart() + " <id></gray> — set start region & spawn");
             send(sender, "<gray>/" + r + " " + cfg.getCmdSetEnd() + " <id></gray> — set end region");

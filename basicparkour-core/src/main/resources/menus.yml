@@ -153,6 +153,12 @@ leaderboard:
     custom_name: "<gold><b>#<rank></b> <yellow><player_name></yellow></gold>"
     lore:
       - "<gray>Time: <aqua><time></aqua></gray>"
+  entry_item_endless:
+    material: PLAYER_HEAD
+    custom_name: "<gold><b>#<rank></b> <yellow><player_name></yellow></gold>"
+    lore:
+      - "<gray>Blocks: <green><blocks></green></gray>"
+      - "<gray>Time: <aqua><time></aqua></gray>"
   empty_entry_item:
     material: LIGHT_GRAY_STAINED_GLASS_PANE
     custom_name: "<dark_gray>#<rank> Empty</dark_gray>"

@@ -30,7 +30,20 @@ public final class InMemoryRepository implements ParkourRepository {
         return CompletableFuture.supplyAsync(() -> {
             var playerMap = records.computeIfAbsent(record.playerUuid(), k -> new ConcurrentHashMap<>());
             PlayerRecord existing = playerMap.get(record.courseId());
-            boolean isNewBest = existing == null || record.timeMs() < existing.timeMs();
+            boolean isNewBest;
+            if (record.blocks() > 0) {
+                if (existing == null) {
+                    isNewBest = true;
+                } else if (record.blocks() > existing.blocks()) {
+                    isNewBest = true;
+                } else if (record.blocks() == existing.blocks()) {
+                    isNewBest = record.timeMs() < existing.timeMs();
+                } else {
+                    isNewBest = false;
+                }
+            } else {
+                isNewBest = existing == null || record.timeMs() < existing.timeMs();
+            }
             if (isNewBest) {
                 playerMap.put(record.courseId(), record);
             }
@@ -56,11 +69,17 @@ public final class InMemoryRepository implements ParkourRepository {
                 PlayerRecord r = courseMap.get(courseId);
                 if (r != null) all.add(r);
             });
-            all.sort(Comparator.comparingLong(PlayerRecord::timeMs));
+            boolean hasBlocks = all.stream().anyMatch(r -> r.blocks() > 0);
+            if (hasBlocks) {
+                all.sort(Comparator.comparingInt(PlayerRecord::blocks).reversed()
+                        .thenComparingLong(PlayerRecord::timeMs));
+            } else {
+                all.sort(Comparator.comparingLong(PlayerRecord::timeMs));
+            }
             List<LeaderboardEntry> board = new ArrayList<>();
             for (int i = 0; i < Math.min(limit, all.size()); i++) {
                 PlayerRecord r = all.get(i);
-                board.add(new LeaderboardEntry(i + 1, r.playerUuid(), r.playerName(), r.timeMs()));
+                board.add(new LeaderboardEntry(i + 1, r.playerUuid(), r.playerName(), r.timeMs(), r.blocks()));
             }
             return Collections.unmodifiableList(board);
         });

@@ -181,8 +181,13 @@ public final class HologramManager {
                             lines.add("<gray>No records yet. Be the first!</gray>");
                         } else {
                             for (LeaderboardEntry entry : board) {
-                                lines.add("<yellow>#" + entry.rank() + " </yellow><white>" + entry.playerName()
-                                        + "</white> <gray>—</gray> <aqua>" + TimerFormatter.format(entry.timeMs()) + "</aqua>");
+                                if (entry.blocks() > 0) {
+                                    lines.add("<yellow>#" + entry.rank() + " </yellow><white>" + entry.playerName()
+                                            + "</white> <gray>—</gray> <green>" + entry.blocks() + " blocks</green> <dark_gray>(" + TimerFormatter.format(entry.timeMs()) + ")</dark_gray>");
+                                } else {
+                                    lines.add("<yellow>#" + entry.rank() + " </yellow><white>" + entry.playerName()
+                                            + "</white> <gray>—</gray> <aqua>" + TimerFormatter.format(entry.timeMs()) + "</aqua>");
+                                }
                             }
                         }
                         lines.add("<gray>Race now: <white>/basicparkour join " + data.getCourseId() + "</white></gray>");
@@ -204,8 +209,13 @@ public final class HologramManager {
                         }
                         if (!board.isEmpty()) {
                             LeaderboardEntry top = board.get(0);
-                            lines.add("<gray>Record: <aqua>" + TimerFormatter.format(top.timeMs())
-                                    + "</aqua> by <white>" + top.playerName() + "</white></gray>");
+                            if (top.blocks() > 0) {
+                                lines.add("<gray>Record: <green>" + top.blocks() + " blocks</green> <dark_gray>("
+                                        + TimerFormatter.format(top.timeMs()) + ")</dark_gray> by <white>" + top.playerName() + "</white></gray>");
+                            } else {
+                                lines.add("<gray>Record: <aqua>" + TimerFormatter.format(top.timeMs())
+                                        + "</aqua> by <white>" + top.playerName() + "</white></gray>");
+                            }
                         } else {
                             lines.add("<gray>Record: <white>None</white></gray>");
                         }

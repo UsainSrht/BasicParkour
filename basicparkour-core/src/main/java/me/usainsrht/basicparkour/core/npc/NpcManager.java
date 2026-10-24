@@ -181,10 +181,24 @@ public final class NpcManager {
                     plugin.getRepository().getPersonalBest(player.getUniqueId(), courseId).thenAccept(opt ->
                             plugin.getScheduler().runOnEntity(player, () -> {
                                 Optional<ParkourCourse> c = BasicParkourAPI.get().getCourseRegistry().getCourse(courseId);
-                                String time = opt.map(r -> TimerFormatter.format(r.timeMs())).orElse("None");
-                                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
-                                        "<aqua>Your PB on <yellow>" + (c.map(ParkourCourse::getId).orElse(courseId)) + "</yellow>: <white>" + time + "</white></aqua>"
-                                ));
+                                String id = c.map(ParkourCourse::getId).orElse(courseId);
+                                if (opt.isPresent()) {
+                                    me.usainsrht.basicparkour.api.storage.PlayerRecord rec = opt.get();
+                                    if (rec.blocks() > 0) {
+                                        player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                                                "<aqua>Your PB on <yellow>" + id + "</yellow>: <green>"
+                                                        + rec.blocks() + " blocks</green> <dark_gray>(" + TimerFormatter.format(rec.timeMs()) + ")</dark_gray></aqua>"
+                                        ));
+                                    } else {
+                                        player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                                                "<aqua>Your PB on <yellow>" + id + "</yellow>: <white>" + TimerFormatter.format(rec.timeMs()) + "</white></aqua>"
+                                        ));
+                                    }
+                                } else {
+                                    player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                                            "<aqua>Your PB on <yellow>" + id + "</yellow>: <white>None</white></aqua>"
+                                    ));
+                                }
                             }));
                 }
                 case SHOW_TOP -> {

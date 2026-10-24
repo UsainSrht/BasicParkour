@@ -53,6 +53,13 @@ session:
   # where they were before starting the course. Essential for SMP/Skyblock!
   teleport-on-leave: true
 
+  # What happens when a player FAILS (void, kill block, blocklist...). Independent from on-complete.
+  # Options: COURSE | CHECKPOINT | JOIN_LOCATION
+  #   COURSE        - Follow each course's own `die-mode` (RESTART_DIE / FAIL_DIE). Generated runs use RESTART_DIE.
+  #   CHECKPOINT    - Always respawn at the last checkpoint and keep the run going.
+  #   JOIN_LOCATION - Fail ends the run and teleports the player back to where they started.
+  on-fail: COURSE
+
   # Where to teleport players when they complete a course.
   # Options: NONE | JOIN_LOCATION | START_LOCATION
   #   NONE           - Player stays at the finish line / end platform.
@@ -252,6 +259,9 @@ commands:
     leave: leave
     restart: restart
     checkpoint: checkpoint
+    pos1: pos1
+    pos2: pos2
+    endless: endless
     top: top
     pb: pb
     reload: reload
@@ -296,43 +306,44 @@ generator:
   dedicated-world-y: 80
 
   # Default difficulty parameters (used unless overridden in the template YAML).
+  # Note: In vanilla Minecraft, players can jump at most 1.25 blocks vertically (+1 block elevation).
   difficulties:
     EASY:
       min-gap: 2
       max-gap: 3
       min-height-delta: -1
-      max-height-delta: 1
+      max-height-delta: 0
       platform-min-size: 2
       platform-max-size: 3
       obstacle-chance: 0.0
       modifier-chance: 0.0
     MEDIUM:
-      min-gap: 3
-      max-gap: 5
-      min-height-delta: -2
-      max-height-delta: 2
+      min-gap: 2
+      max-gap: 3
+      min-height-delta: -1
+      max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 2
-      obstacle-chance: 0.15
+      obstacle-chance: 0.10
       modifier-chance: 0.05
     HARD:
-      min-gap: 4
-      max-gap: 6
+      min-gap: 3
+      max-gap: 4
       min-height-delta: -2
-      max-height-delta: 3
+      max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 2
-      obstacle-chance: 0.25
+      obstacle-chance: 0.20
       modifier-chance: 0.10
     EXPERT:
-      min-gap: 5
-      max-gap: 8
-      min-height-delta: -3
-      max-height-delta: 4
+      min-gap: 3
+      max-gap: 4
+      min-height-delta: -2
+      max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 1
-      obstacle-chance: 0.40
-      modifier-chance: 0.18
+      obstacle-chance: 0.25
+      modifier-chance: 0.15
 
   # Entry points registered via /basicparkour setentry.
   entry-points: {}

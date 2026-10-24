@@ -40,6 +40,14 @@ public final class GeneratorTemplateLoader {
         if (!generatorsDir.exists()) {
             generatorsDir.mkdirs();
             plugin.saveResource("generators/example_generator.yml", false);
+            plugin.saveResource("generators/single_block.yml", false);
+        } else {
+            if (!new File(generatorsDir, "example_generator.yml").exists()) {
+                plugin.saveResource("generators/example_generator.yml", false);
+            }
+            if (!new File(generatorsDir, "single_block.yml").exists()) {
+                plugin.saveResource("generators/single_block.yml", false);
+            }
         }
 
         List<GeneratorTemplate> result = new ArrayList<>();
@@ -135,6 +143,20 @@ public final class GeneratorTemplateLoader {
         String leaderboardId = cfg.getString("leaderboard-course-id",
             plugin.getConfig().getString("generator.leaderboard-id", "__generated__"));
 
+        // ── Platform shapes ────────────────────────────────────────────────
+        List<String> platformShapes = new ArrayList<>();
+        if (cfg.isList("platform-shapes")) {
+            for (String shape : cfg.getStringList("platform-shapes")) {
+                if (shape != null && !shape.isBlank()) {
+                    platformShapes.add(shape.trim().toUpperCase(Locale.ROOT));
+                }
+            }
+        } else if (cfg.isList("platform-sizes")) {
+            for (int size : cfg.getIntegerList("platform-sizes")) {
+                platformShapes.add(size + "x" + size);
+            }
+        }
+
         // ── Difficulty overrides ───────────────────────────────────────────
         ConfigurationSection overrides = cfg.getConfigurationSection("difficulty-overrides");
         int minGap          = overrides != null ? overrides.getInt("min-gap",          -1) : -1;
@@ -166,7 +188,7 @@ public final class GeneratorTemplateLoader {
             id, displayName, difficulty, theme, lengthType, fixedLength,
             blockMode, slidingWindowAhead, cleanupDelay,
             entryMode, dedicatedWorld, dedicatedRadius, shared, seed,
-            leaderboardId,
+            leaderboardId, platformShapes,
             minGap, maxGap, minHeightDelta, maxHeightDelta,
             platMinSize, platMaxSize, obstChance, modChance,
             modifiers

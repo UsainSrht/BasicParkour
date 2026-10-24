@@ -50,13 +50,24 @@ messages:
       - "<aqua>🏆 <bold>NEW PERSONAL BEST!</bold> <white><time></white></aqua>"
     sound: "entity.player.levelup,1.0,1.2"
 
-  # Action bar timer display (shown during a session)
+  # Displayed for endless/generated parkours when a new personal best (block count) is set
+  personal-best-endless:
+    chat:
+      - "<aqua>🏆 <bold>NEW PERSONAL BEST!</bold> <green><blocks> blocks</green> <dark_gray>(<white><time></white>)</dark_gray></aqua>"
+    sound: "entity.player.levelup,1.0,1.2"
+
+  # Action bar timer display for standard courses (shown during a session)
   timer-display:
     actionbar: "<gray>⏱ <white><time></white>  <dark_gray>CP: <white><checkpoint></white>/<white><total></white></dark_gray>"
+
+  # Action bar timer display for endless/generated courses (shows block count)
+  timer-display-endless:
+    actionbar: "<gray>⏱ <white><time></white>  <dark_gray>Blocks: <green><blocks></green></dark_gray>"
 
   # Leaderboard
   leaderboard-header: "<gold>━━━ <bold>Leaderboard — <course></bold> ━━━</gold>"
   leaderboard-entry: "  <gray><rank>. <white><player></white> — <yellow><time></yellow></gray>"
+  leaderboard-entry-endless: "  <gray><rank>. <white><player></white> — <green><blocks> blocks</green> <dark_gray>(<yellow><time></yellow>)</dark_gray></gray>"
 
   # Errors & session state
   no-course: "<red>No course found with that ID.</red>"

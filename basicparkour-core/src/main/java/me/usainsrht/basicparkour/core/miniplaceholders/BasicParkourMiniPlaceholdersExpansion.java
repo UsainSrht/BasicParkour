@@ -29,6 +29,7 @@ public final class BasicParkourMiniPlaceholdersExpansion {
     private final Map<String, CacheEntry<String>> pbCache = new ConcurrentHashMap<>();
     private final Map<String, CacheEntry<String>> topPlayerCache = new ConcurrentHashMap<>();
     private final Map<String, CacheEntry<String>> topTimeCache = new ConcurrentHashMap<>();
+    private final Map<String, CacheEntry<String>> topBlocksCache = new ConcurrentHashMap<>();
 
     public BasicParkourMiniPlaceholdersExpansion(@NotNull BasicParkourPlugin plugin) {
         this.plugin = plugin;
@@ -106,6 +107,19 @@ public final class BasicParkourMiniPlaceholdersExpansion {
             return Tag.selfClosingInserting(Component.text(getTopTime(courseId, rank, true)));
         });
 
+        // <basicparkour_top_blocks:<courseId>:<rank>>
+        builder.globalPlaceholder("top_blocks", (queue, ctx) -> {
+            if (!queue.hasNext()) return Tag.selfClosingInserting(Component.text("0"));
+            String courseId = queue.pop().value();
+            int rank = 1;
+            if (queue.hasNext()) {
+                try {
+                    rank = Integer.parseInt(queue.pop().value());
+                } catch (NumberFormatException ignored) {}
+            }
+            return Tag.selfClosingInserting(Component.text(getTopBlocks(courseId, rank)));
+        });
+
         // ── Audience Placeholders ─────────────────────────────────────────
 
         // <basicparkour_in_session>
@@ -163,6 +177,14 @@ public final class BasicParkourMiniPlaceholdersExpansion {
             return Tag.selfClosingInserting(Component.text(total));
         });
 
+        // <basicparkour_current_blocks>
+        builder.audiencePlaceholder(Player.class, "current_blocks", (player, queue, ctx) -> {
+            int blocks = plugin.getSessionManager().getSession(player)
+                    .map(ParkourSession::getCurrentCheckpointIndex)
+                    .orElse(0);
+            return Tag.selfClosingInserting(Component.text(blocks));
+        });
+
         // <basicparkour_is_ghost_enabled>
         builder.audiencePlaceholder(Player.class, "is_ghost_enabled", (player, queue, ctx) -> {
             boolean enabled = plugin.getGhostRecorder().isPlayerGhostEnabled(player.getUniqueId());
@@ -181,6 +203,13 @@ public final class BasicParkourMiniPlaceholdersExpansion {
             if (!queue.hasNext()) return Tag.selfClosingInserting(Component.text("None"));
             String courseId = queue.pop().value();
             return Tag.selfClosingInserting(Component.text(getPlayerPb(player, courseId, true)));
+        });
+
+        // <basicparkour_pb_blocks:<courseId>>
+        builder.audiencePlaceholder(Player.class, "pb_blocks", (player, queue, ctx) -> {
+            if (!queue.hasNext()) return Tag.selfClosingInserting(Component.text("0"));
+            String courseId = queue.pop().value();
+            return Tag.selfClosingInserting(Component.text(getPlayerPbBlocks(player, courseId)));
         });
 
         this.expansion = builder.build();
@@ -212,6 +241,23 @@ public final class BasicParkourMiniPlaceholdersExpansion {
         return cached != null ? cached.value : "...";
     }
 
+    private String getPlayerPbBlocks(Player player, String courseId) {
+        String cacheKey = player.getUniqueId() + ":" + courseId + ":blocks";
+        CacheEntry<String> cached = pbCache.get(cacheKey);
+        long now = System.currentTimeMillis();
+        if (cached != null && now - cached.timestamp < CACHE_TTL_MS) {
+            return cached.value;
+        }
+
+        plugin.getRepository().getPersonalBest(player.getUniqueId(), courseId)
+                .thenAccept(opt -> {
+                    String val = opt.map(r -> String.valueOf(r.blocks())).orElse("0");
+                    pbCache.put(cacheKey, new CacheEntry<>(val, System.currentTimeMillis()));
+                });
+
+        return cached != null ? cached.value : "...";
+    }
+
     private String getTopPlayer(String courseId, int rank) {
         String cacheKey = courseId + ":" + rank;
         CacheEntry<String> cached = topPlayerCache.get(cacheKey);
@@ -236,6 +282,18 @@ public final class BasicParkourMiniPlaceholdersExpansion {
         return cached != null ? cached.value : "...";
     }
 
+    private String getTopBlocks(String courseId, int rank) {
+        String cacheKey = courseId + ":" + rank;
+        CacheEntry<String> cached = topBlocksCache.get(cacheKey);
+        long now = System.currentTimeMillis();
+        if (cached != null && now - cached.timestamp < CACHE_TTL_MS) {
+            return cached.value;
+        }
+
+        fetchLeaderboard(courseId, rank);
+        return cached != null ? cached.value : "...";
+    }
+
     private void fetchLeaderboard(String courseId, int rank) {
         plugin.getRepository().getLeaderboard(courseId, Math.max(10, rank))
                 .thenAccept(board -> {
@@ -247,6 +305,8 @@ public final class BasicParkourMiniPlaceholdersExpansion {
                                 new CacheEntry<>(TimerFormatter.format(entry.timeMs()), now));
                         topTimeCache.put(courseId + ":" + entry.rank() + ":raw",
                                 new CacheEntry<>(String.valueOf(entry.timeMs()), now));
+                        topBlocksCache.put(courseId + ":" + entry.rank(),
+                                new CacheEntry<>(String.valueOf(entry.blocks()), now));
                     }
                 });
     }

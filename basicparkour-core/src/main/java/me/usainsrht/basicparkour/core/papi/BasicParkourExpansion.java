@@ -41,6 +41,7 @@ public final class BasicParkourExpansion extends PlaceholderExpansion {
     private final Map<String, CacheEntry<String>> pbCache = new ConcurrentHashMap<>();
     private final Map<String, CacheEntry<String>> topPlayerCache = new ConcurrentHashMap<>();
     private final Map<String, CacheEntry<String>> topTimeCache = new ConcurrentHashMap<>();
+    private final Map<String, CacheEntry<String>> topBlocksCache = new ConcurrentHashMap<>();
 
     public BasicParkourExpansion(@NotNull BasicParkourPlugin plugin) {
         this.plugin = plugin;
@@ -104,6 +105,34 @@ public final class BasicParkourExpansion extends PlaceholderExpansion {
                     .orElse("0");
         }
 
+        if (params.equalsIgnoreCase("current_blocks")) {
+            if (player == null) return "0";
+            return plugin.getSessionManager().getSession(player)
+                    .map(s -> String.valueOf(s.getCurrentCheckpointIndex()))
+                    .orElse("0");
+        }
+
+        // %basicparkour_pb_blocks_<courseId>%
+        if (params.toLowerCase().startsWith("pb_blocks_")) {
+            if (offlinePlayer == null) return "0";
+            String courseId = params.substring(10);
+            String cacheKey = offlinePlayer.getUniqueId() + ":" + courseId + ":blocks";
+
+            CacheEntry<String> cached = pbCache.get(cacheKey);
+            long now = System.currentTimeMillis();
+            if (cached != null && now - cached.timestamp < CACHE_TTL_MS) {
+                return cached.value;
+            }
+
+            plugin.getRepository().getPersonalBest(offlinePlayer.getUniqueId(), courseId)
+                    .thenAccept(opt -> {
+                        String val = opt.map(r -> String.valueOf(r.blocks())).orElse("0");
+                        pbCache.put(cacheKey, new CacheEntry<>(val, System.currentTimeMillis()));
+                    });
+
+            return cached != null ? cached.value : "...";
+        }
+
         // %basicparkour_pb_<courseId>%
         if (params.toLowerCase().startsWith("pb_")) {
             if (offlinePlayer == null) return "None";
@@ -155,6 +184,8 @@ public final class BasicParkourExpansion extends PlaceholderExpansion {
                                     new CacheEntry<>(entry.playerName(), System.currentTimeMillis()));
                             topTimeCache.put(courseId + ":" + entry.rank(),
                                     new CacheEntry<>(TimerFormatter.format(entry.timeMs()), System.currentTimeMillis()));
+                            topBlocksCache.put(courseId + ":" + entry.rank(),
+                                    new CacheEntry<>(String.valueOf(entry.blocks()), System.currentTimeMillis()));
                         }
                     });
 
@@ -189,6 +220,44 @@ public final class BasicParkourExpansion extends PlaceholderExpansion {
                                     new CacheEntry<>(entry.playerName(), System.currentTimeMillis()));
                             topTimeCache.put(courseId + ":" + entry.rank(),
                                     new CacheEntry<>(TimerFormatter.format(entry.timeMs()), System.currentTimeMillis()));
+                            topBlocksCache.put(courseId + ":" + entry.rank(),
+                                    new CacheEntry<>(String.valueOf(entry.blocks()), System.currentTimeMillis()));
+                        }
+                    });
+
+            return cached != null ? cached.value : "...";
+        }
+
+        // %basicparkour_top_blocks_<courseId>_<rank>%
+        if (params.toLowerCase().startsWith("top_blocks_")) {
+            String sub = params.substring(11);
+            int lastUnderscore = sub.lastIndexOf('_');
+            if (lastUnderscore == -1) return "0";
+
+            String courseId = sub.substring(0, lastUnderscore);
+            int rank;
+            try {
+                rank = Integer.parseInt(sub.substring(lastUnderscore + 1));
+            } catch (NumberFormatException e) {
+                return "0";
+            }
+
+            String cacheKey = courseId + ":" + rank;
+            CacheEntry<String> cached = topBlocksCache.get(cacheKey);
+            long now = System.currentTimeMillis();
+            if (cached != null && now - cached.timestamp < CACHE_TTL_MS) {
+                return cached.value;
+            }
+
+            plugin.getRepository().getLeaderboard(courseId, Math.max(10, rank))
+                    .thenAccept(board -> {
+                        for (var entry : board) {
+                            topPlayerCache.put(courseId + ":" + entry.rank(),
+                                    new CacheEntry<>(entry.playerName(), System.currentTimeMillis()));
+                            topTimeCache.put(courseId + ":" + entry.rank(),
+                                    new CacheEntry<>(TimerFormatter.format(entry.timeMs()), System.currentTimeMillis()));
+                            topBlocksCache.put(courseId + ":" + entry.rank(),
+                                    new CacheEntry<>(String.valueOf(entry.blocks()), System.currentTimeMillis()));
                         }
                     });
 

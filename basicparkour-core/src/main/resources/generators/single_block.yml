@@ -1,0 +1,49 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# BasicParkour — Single Block Endless Generator Template
+# ──────────────────────────────────────────────────────────────────────────────
+# In this parkour, ONLY single (1x1) blocks are generated for every jump.
+# Obstacles are never placed on landing blocks, and all jumps strictly respect
+# vanilla Minecraft jump physics (never impossible).
+
+id: "single_block"
+display-name: "<gradient:gold:yellow>Single Block Parkour</gradient>"
+
+difficulty: MEDIUM
+
+theme:
+  name: "Planks"
+  platform-materials:
+    - OAK_PLANKS
+    - BIRCH_PLANKS
+    - SPRUCE_PLANKS
+    - DARK_OAK_PLANKS
+  accent-materials:
+    - STRIPPED_OAK_LOG
+  obstacle-materials: []
+
+length-type: INFINITE
+fixed-length: 30
+
+block-mode: SLIDING_WINDOW
+sliding-window-ahead: 15
+
+cleanup-delay-seconds: 30
+
+entry-mode: DEDICATED_WORLD
+dedicated-world: "world"
+dedicated-world-radius: 20000
+
+shared: false
+
+leaderboard-course-id: "single_block"
+
+# Pure 1x1 single blocks only
+platform-shapes:
+  - "1x1"
+
+difficulty-overrides:
+  min-gap: 2
+  max-gap: 4
+  min-height-delta: -1
+  max-height-delta: 1
+  obstacle-chance: 0.0

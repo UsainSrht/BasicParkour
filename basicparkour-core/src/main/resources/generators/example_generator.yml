@@ -32,13 +32,14 @@ theme:
 
 # ── Length ────────────────────────────────────────────────────────────────────
 # Options: FIXED | INFINITE
-length-type: FIXED
-fixed-length: 30          # Number of platforms (ignored for INFINITE)
+# INFINITE = the course never ends; new platforms are generated as the player advances.
+length-type: INFINITE
+fixed-length: 30          # Number of platforms (only used when length-type is FIXED)
 
 # ── Block mode ────────────────────────────────────────────────────────────────
 # FULL_UPFRONT  — Place all blocks before the run starts, remove all on end.
-# SLIDING_WINDOW — Generate ahead, remove behind as the player moves.
-block-mode: FULL_UPFRONT
+# SLIDING_WINDOW — Generate ahead, remove behind as the player moves (use this for INFINITE).
+block-mode: SLIDING_WINDOW
 sliding-window-ahead: 15  # How many platforms to keep visible ahead (SLIDING_WINDOW only)
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
@@ -46,11 +47,13 @@ sliding-window-ahead: 15  # How many platforms to keep visible ahead (SLIDING_WI
 cleanup-delay-seconds: 30
 
 # ── Entry mode ────────────────────────────────────────────────────────────────
-# DEDICATED_WORLD — Placed at a random non-overlapping slot in a dedicated world.
+# DEDICATED_WORLD — Placed at a random non-overlapping slot (Y from generator.dedicated-world-y)
+#                   in the world below. Best practice: point this at an empty/void world so
+#                   generated blocks never touch player builds.
 # MARKER          — Placed at an admin-defined marker (use /basicparkour setentry).
 entry-mode: DEDICATED_WORLD
 dedicated-world: "world"      # Name of the world to generate in
-dedicated-world-radius: 100000 # Max distance from 0,0 for slot placement
+dedicated-world-radius: 20000 # Max distance from 0,0 for slot placement
 
 # ── Session sharing ───────────────────────────────────────────────────────────
 # false = each player gets their own private instance (solo)
@@ -67,16 +70,37 @@ shared: false
 # Override here to have a separate board for this template.
 leaderboard-course-id: "__generated__"
 
+# ── Platform shapes ─────────────────────────────────────────────────────────
+# Defines which platform designs are generated for each jump.
+# Available shapes:
+#   - "1x1"   : Single block jump (pure parkour; obstacles are NEVER placed on 1x1 landing blocks)
+#   - "2x2"   : 2x2 block square
+#   - "3x3"   : 3x3 platform
+#   - "2x1"   : 2-block line
+#   - "3x1"   : 3-block runway
+#   - "CROSS" : Plus/cross shape (5 blocks)
+#
+# For a pure 1-block parkour, simply specify only "1x1":
+#   platform-shapes:
+#     - "1x1"
+#
+# Combinations can be configured freely:
+platform-shapes:
+  - "1x1"
+  - "2x2"
+  - "CROSS"
+
 # ── Difficulty overrides (optional) ──────────────────────────────────────────
-# Uncomment any field to override the difficulty defaults for this template only.
+# Vanilla Minecraft physics note:
+# Maximum vanilla jump height without potion effects is 1.25 blocks (+1 block elevation).
+# Jumping up +1 block caps horizontal distance at 3.0 blocks.
+# Flat jumps cap at 4.0 blocks. Downward jumps cap at 4.2 blocks.
 # difficulty-overrides:
-#   min-gap: 3
-#   max-gap: 5
-#   min-height-delta: -1
-#   max-height-delta: 2
-#   platform-min-size: 1
-#   platform-max-size: 2
-#   obstacle-chance: 0.25   # probability 0.0 – 1.0
+#   min-gap: 2
+#   max-gap: 4
+#   min-height-delta: -2
+#   max-height-delta: 1
+#   obstacle-chance: 0.15   # probability 0.0 – 1.0 (never placed on 1x1 landing blocks)
 #   modifier-chance: 0.05   # probability 0.0 – 1.0
 
 # ── Modifier overrides (optional) ────────────────────────────────────────────
@@ -89,3 +113,4 @@ leaderboard-course-id: "__generated__"
 #     type: boost
 #   - block: MAGMA_BLOCK
 #     type: kill_block
+

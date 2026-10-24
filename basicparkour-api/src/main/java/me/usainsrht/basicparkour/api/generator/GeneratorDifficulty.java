@@ -14,35 +14,35 @@ public enum GeneratorDifficulty {
         /* minGap */          2,
         /* maxGap */          3,
         /* minHeightDelta */  -1,
-        /* maxHeightDelta */   1,
+        /* maxHeightDelta */   0,
         /* platformMinSize */  2,
         /* platformMaxSize */  3,
         /* obstacleChance */   0.0,
         /* modifierChance */   0.0
     ),
 
-    /** Moderate gaps and mild height changes; occasional obstacles. */
+    /** Moderate gaps (1-2 air blocks) and mild height changes; occasional obstacles. */
     MEDIUM(
-        3, 5,
-        -2, 2,
+        2, 3,
+        -1, 1,
         1, 2,
-        0.15, 0.05
+        0.10, 0.05
     ),
 
-    /** Larger gaps, steeper height changes, regular obstacles and modifiers. */
+    /** Larger gaps (2-3 air blocks), steeper height changes (-2 to +1), regular obstacles. */
     HARD(
-        4, 6,
-        -2, 3,
+        3, 4,
+        -2, 1,
         1, 2,
-        0.25, 0.10
+        0.20, 0.10
     ),
 
-    /** Extreme gaps, sharp height changes, frequent obstacles and modifiers. */
+    /** Maximum jumps (3 air blocks, tight angles), precise jumps, frequent obstacles. */
     EXPERT(
-        5, 8,
-        -3, 4,
+        3, 4,
+        -2, 1,
         1, 1,
-        0.40, 0.18
+        0.25, 0.15
     );
 
     // ── Default parameter fields ───────────────────────────────────────────

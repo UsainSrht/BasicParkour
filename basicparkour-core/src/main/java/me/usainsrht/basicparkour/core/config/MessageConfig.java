@@ -22,9 +22,12 @@ public final class MessageConfig {
     private YamlMessage courseComplete;
     private YamlMessage sessionFail;
     private YamlMessage personalBest;
+    private YamlMessage personalBestEndless;
     private YamlMessage timerDisplay;
+    private YamlMessage timerDisplayEndless;
     private YamlMessage leaderboardHeader;
     private YamlMessage leaderboardEntry;
+    private YamlMessage leaderboardEntryEndless;
     private YamlMessage noCourse;
     private YamlMessage alreadyInSession;
     private YamlMessage sessionLeave;
@@ -73,12 +76,18 @@ public final class MessageConfig {
             "<red>✗ Failed! <gray>Respawning at last checkpoint…</gray></red>");
         personalBest = getMessage("personal-best",
             "<aqua>🏆 <bold>New personal best!</bold> <white><time></white></aqua>");
+        personalBestEndless = getMessage("personal-best-endless",
+            "<aqua>🏆 <bold>New personal best!</bold> <green><blocks> blocks</green> <dark_gray>(<white><time></white>)</dark_gray></aqua>");
         timerDisplay = getMessage("timer-display",
             "<gray>⏱ <white><time></white>  <dark_gray>CP: <white><checkpoint></white>/<white><total></white></dark_gray>");
+        timerDisplayEndless = getMessage("timer-display-endless",
+            "<gray>⏱ <white><time></white>  <dark_gray>Blocks: <green><blocks></green></dark_gray>");
         leaderboardHeader = getMessage("leaderboard-header",
             "<gold>━━━ <bold>Leaderboard — <course></bold> ━━━</gold>");
         leaderboardEntry = getMessage("leaderboard-entry",
             "  <gray><rank>. <white><player></white> — <yellow><time></yellow></gray>");
+        leaderboardEntryEndless = getMessage("leaderboard-entry-endless",
+            "  <gray><rank>. <white><player></white> — <green><blocks> blocks</green> <dark_gray>(<yellow><time></yellow>)</dark_gray></gray>");
         noCourse = getMessage("no-course", "<red>No course found with that ID.</red>");
         alreadyInSession = getMessage("already-in-session",
             "<yellow>You are already running a course! Use <white>/basicparkour leave</white> to exit.</yellow>");
@@ -122,9 +131,12 @@ public final class MessageConfig {
     public @NotNull YamlMessage getCourseComplete() { return courseComplete; }
     public @NotNull YamlMessage getSessionFail() { return sessionFail; }
     public @NotNull YamlMessage getPersonalBest() { return personalBest; }
+    public @NotNull YamlMessage getPersonalBestEndless() { return personalBestEndless; }
     public @NotNull YamlMessage getTimerDisplay() { return timerDisplay; }
+    public @NotNull YamlMessage getTimerDisplayEndless() { return timerDisplayEndless; }
     public @NotNull YamlMessage getLeaderboardHeader() { return leaderboardHeader; }
     public @NotNull YamlMessage getLeaderboardEntry() { return leaderboardEntry; }
+    public @NotNull YamlMessage getLeaderboardEntryEndless() { return leaderboardEntryEndless; }
     public @NotNull YamlMessage getNoCourse() { return noCourse; }
     public @NotNull YamlMessage getAlreadyInSession() { return alreadyInSession; }
     public @NotNull YamlMessage getSessionLeave() { return sessionLeave; }

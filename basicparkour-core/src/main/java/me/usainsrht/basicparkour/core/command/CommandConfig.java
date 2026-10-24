@@ -42,9 +42,17 @@ public final class CommandConfig {
     private final String cmdSave;
     private final String cmdRestart;
     private final String cmdCheckpoint;
+    private final String cmdPos1;
+    private final String cmdPos2;
+    private final String cmdEndless;
 
     public CommandConfig(@NotNull FileConfiguration cfg) {
         ConfigurationSection sec = cfg.getConfigurationSection("commands");
+
+        ConfigurationSection earlySub = sec != null ? sec.getConfigurationSection("subcommands") : null;
+        cmdPos1    = earlySub != null ? earlySub.getString("pos1", "pos1") : "pos1";
+        cmdPos2    = earlySub != null ? earlySub.getString("pos2", "pos2") : "pos2";
+        cmdEndless = earlySub != null ? earlySub.getString("endless", "endless") : "endless";
 
         if (sec == null) {
             // Safe defaults — mirrors the values in config.yml
@@ -160,4 +168,7 @@ public final class CommandConfig {
     public @NotNull String getCmdSave()         { return cmdSave; }
     public @NotNull String getCmdRestart()      { return cmdRestart; }
     public @NotNull String getCmdCheckpoint()   { return cmdCheckpoint; }
+    public @NotNull String getCmdPos1()         { return cmdPos1; }
+    public @NotNull String getCmdPos2()         { return cmdPos2; }
+    public @NotNull String getCmdEndless()      { return cmdEndless; }
 }

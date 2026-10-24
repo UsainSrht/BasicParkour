@@ -90,11 +90,16 @@ public final class LeaderboardGUI extends BasicParkourGUI {
                             TagResolver res = TagResolver.resolver(
                                     Placeholder.parsed("rank", String.valueOf(entry.rank())),
                                     Placeholder.parsed("player_name", entry.playerName()),
+                                    Placeholder.parsed("blocks", String.valueOf(entry.blocks())),
                                     Placeholder.parsed("time", TimerFormatter.format(entry.timeMs()))
                             );
 
-                            ItemStack item = entryItemSec != null
-                                    ? plugin.getMenuConfig().parseItem(entryItemSec, res)
+                            ConfigurationSection itemSec = (entry.blocks() > 0 && sec.isConfigurationSection("entry_item_endless"))
+                                    ? sec.getConfigurationSection("entry_item_endless")
+                                    : entryItemSec;
+
+                            ItemStack item = itemSec != null
+                                    ? plugin.getMenuConfig().parseItem(itemSec, res)
                                     : plugin.getMenuConfig().parseItem("leaderboard.entry_item", res);
 
                             if (item.getItemMeta() instanceof SkullMeta skullMeta) {
