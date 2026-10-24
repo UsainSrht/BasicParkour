@@ -154,10 +154,12 @@ public final class GeneratorManagerImpl implements GeneratorManager {
     private record GenerationData(
         @NotNull World world,
         @NotNull Location startLoc,
+        float initialYaw,
         @NotNull List<JumpToJumpAlgorithm.GeneratedPlatform> platforms,
         @NotNull String courseId,
         long seed,
-        @NotNull SlotAllocatorResult slotResult
+        @NotNull SlotAllocatorResult slotResult,
+        @NotNull Random rng
     ) {}
 
     private record SlotAllocatorResult(int slotId, @NotNull String worldName) {}
@@ -256,24 +258,33 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             : template.slidingWindowAhead() * 2;
 
         List<JumpToJumpAlgorithm.GeneratedPlatform> platforms = new ArrayList<>();
+        List<Location> recentCenters = new ArrayList<>();
 
         JumpToJumpAlgorithm.GeneratedPlatform first =
             JumpToJumpAlgorithm.generateStart(template, world, startLoc, initialYaw, rng);
         platforms.add(first);
+        recentCenters.add(first.centerLocation());
 
         Location lastCenter = first.centerLocation();
         float lastYaw       = first.outgoingYawDeg();
+        float baseYaw       = initialYaw;
+        Location originCenter = startLoc.clone();
 
         for (int i = 1; i < platformCount; i++) {
             JumpToJumpAlgorithm.GeneratedPlatform p =
-                JumpToJumpAlgorithm.generateNext(template, world, lastCenter, lastYaw, i, rng);
+                JumpToJumpAlgorithm.generateNext(
+                    template, world, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, i, rng);
             platforms.add(p);
+            recentCenters.add(p.centerLocation());
+            if (recentCenters.size() > 30) {
+                recentCenters.remove(0);
+            }
             lastCenter = p.centerLocation();
             lastYaw    = p.outgoingYawDeg();
         }
 
         String courseId = COURSE_ID_PREFIX + courseIdSeq.getAndIncrement();
-        return new GenerationData(world, startLoc, platforms, courseId, seed, slotResult);
+        return new GenerationData(world, startLoc, initialYaw, platforms, courseId, seed, slotResult, rng);
     }
 
     // ── Phase 2: place blocks on region threads, then start session ────────
@@ -380,13 +391,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                         sessionFuture.complete(session);
 
                         if (template.blockMode() == BlockMode.SLIDING_WINDOW) {
-                            Random slidingRng = new Random(data.seed());
-                            for (int i = 0; i < data.platforms().size() - 1; i++) {
-                                JumpToJumpAlgorithm.generateNext(template, data.world(),
-                                    new Location(data.world(), 0, 0, 0), 0, i, slidingRng);
-                            }
                             attachSlidingWindow(instance, template, player, data.world(),
-                                slidingRng, finalLastCenter, finalLastYaw);
+                                data.rng(), finalLastCenter, finalLastYaw, data.initialYaw(),
+                                data.startLoc(), data.platforms());
                         }
                     } else {
                         Location spawn = data.platforms().get(0).checkpoint().getSpawnLocation();
@@ -396,13 +403,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                                 sessionFuture.complete(session);
 
                                 if (template.blockMode() == BlockMode.SLIDING_WINDOW) {
-                                    Random slidingRng = new Random(data.seed());
-                                    for (int i = 0; i < data.platforms().size() - 1; i++) {
-                                        JumpToJumpAlgorithm.generateNext(template, data.world(),
-                                            new Location(data.world(), 0, 0, 0), 0, i, slidingRng);
-                                    }
                                     attachSlidingWindow(instance, template, player, data.world(),
-                                        slidingRng, finalLastCenter, finalLastYaw);
+                                        data.rng(), finalLastCenter, finalLastYaw, data.initialYaw(),
+                                        data.startLoc(), data.platforms());
                                 }
                             })
                         );
@@ -422,17 +425,27 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         @NotNull World world,
         @NotNull Random rng,
         @NotNull Location initialLastCenter,
-        float initialLastYaw
+        float initialLastYaw,
+        float baseYaw,
+        @NotNull Location originCenter,
+        @NotNull List<JumpToJumpAlgorithm.GeneratedPlatform> initialPlatforms
     ) {
         Location[] lastCenter = {initialLastCenter.clone()};
         float[]    lastYaw    = {initialLastYaw};
         int[]      nextIndex  = {instance.placedPlatformCount.get()};
+        List<Location> recentCenters = new ArrayList<>();
+        for (JumpToJumpAlgorithm.GeneratedPlatform p : initialPlatforms) {
+            recentCenters.add(p.centerLocation());
+        }
+        if (recentCenters.size() > 30) {
+            recentCenters.subList(0, recentCenters.size() - 30).clear();
+        }
 
         Runnable aheadTask = () -> {
             if (!instance.isActive() || !player.isOnline()) return;
             Location playerLoc = player.getLocation();
             int playerPlatformIndex = getPlayerPlatformIndex(instance, playerLoc);
-            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, nextIndex, playerPlatformIndex);
+            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, playerPlatformIndex);
         };
         playerAheadTriggers.put(player.getUniqueId(), aheadTask);
 
@@ -443,7 +456,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             int playerPlatformIndex = getPlayerPlatformIndex(instance, playerLoc);
 
             performSlidingWindowSweep(instance, template, playerPlatformIndex);
-            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, nextIndex, playerPlatformIndex);
+            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, playerPlatformIndex);
         }, 10L, 10L);
 
         instance.slidingTask = task;
@@ -493,6 +506,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         @NotNull Random rng,
         @NotNull Location[] lastCenter,
         float[] lastYaw,
+        float baseYaw,
+        @NotNull Location originCenter,
+        @NotNull List<Location> recentCenters,
         int[] nextIndex,
         int playerPlatformIndex
     ) {
@@ -504,12 +520,17 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             final Location prevCenter = lastCenter[0].clone();
             JumpToJumpAlgorithm.GeneratedPlatform newPlatform =
                 JumpToJumpAlgorithm.generateNext(
-                    template, world, lastCenter[0], lastYaw[0], nextIndex[0], rng);
+                    template, world, lastCenter[0], lastYaw[0], baseYaw, originCenter, recentCenters, nextIndex[0], rng);
 
             lastCenter[0] = newPlatform.centerLocation().clone();
             lastYaw[0]    = newPlatform.outgoingYawDeg();
             nextIndex[0]++;
             platformsCreated++;
+
+            recentCenters.add(newPlatform.centerLocation());
+            if (recentCenters.size() > 30) {
+                recentCenters.remove(0);
+            }
 
             // Append checkpoint dynamically to ongoing infinite run
             instance.getCourseImpl().appendCheckpoint(newPlatform.checkpoint());

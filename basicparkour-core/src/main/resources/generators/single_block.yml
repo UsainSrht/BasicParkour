@@ -46,6 +46,24 @@ leaderboard-course-id: "single_block"
 platform-shapes:
   - "1x1"
 
+# ── Direction & Cone Constraint ───────────────────────────────────────────────
+# Restricts the allowed heading angle of generated jumps, projecting a forward cone.
+# Prevents endless parkour from looping backwards and overlapping with its own tail!
+# Options:
+#   90.0  - 90° forward cone (±45° from start direction). Ideal for infinite forward runs!
+#   180.0 - 180° forward hemisphere (±90°, forward and sideways only, never backwards).
+#   360.0 - Full 360° freedom (can turn in any direction).
+#   0.0   - Strictly straight line.
+direction-cone: 90.0
+
+# Optional corridor width (in blocks) to keep endless parkour within a central lane.
+# Set to 0 to disable (pure cone projection).
+corridor-width: 0
+
+# Optional maximum vertical height deviation (in blocks) from start location.
+# Prevents endless runs from endlessly climbing to the sky or diving into the void.
+max-height-deviation: 15
+
 difficulty-overrides:
   min-gap: 2
   max-gap: 4

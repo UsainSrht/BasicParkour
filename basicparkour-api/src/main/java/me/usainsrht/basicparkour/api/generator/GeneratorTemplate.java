@@ -90,11 +90,68 @@ public record GeneratorTemplate(
     @NotNull  SlidingWindowMode   slidingWindowMode,
               double              slidingWindowTimeSeconds,
     @Nullable Location            failLocation,
-    @Nullable Location            completeLocation
+    @Nullable Location            completeLocation,
+
+    // ── Direction & Cone Constraint ───────────────────────────────────────
+              double              directionCone,
+    @Nullable Float               directionYaw,
+              int                 corridorWidth,
+              int                 maxHeightDeviation
 ) {
     public GeneratorTemplate {
         platformShapes = List.copyOf(platformShapes);
         modifierOverrides = Map.copyOf(modifierOverrides);
+    }
+
+    public GeneratorTemplate(
+        @NotNull  String             id,
+        @NotNull  String             displayName,
+        @NotNull  GeneratorDifficulty difficulty,
+        @NotNull  GeneratorTheme      theme,
+        @NotNull  LengthType          lengthType,
+                  int                 fixedLength,
+        @NotNull  BlockMode           blockMode,
+                  int                 slidingWindowAhead,
+                  int                 cleanupDelaySeconds,
+        @NotNull  EntryMode           entryMode,
+        @Nullable String              dedicatedWorldName,
+                  int                 dedicatedWorldRadius,
+                  boolean             shared,
+        @Nullable Long                seed,
+        @NotNull  String              leaderboardCourseId,
+        @Nullable Float               fixedYaw,
+        @NotNull  List<String>        platformShapes,
+                  int                 minGap,
+                  int                 maxGap,
+                  int                 minHeightDelta,
+                  int                 maxHeightDelta,
+                  int                 platformMinSize,
+                  int                 platformMaxSize,
+                  double              obstacleChance,
+                  double              modifierChance,
+        @NotNull  Map<Material, String> modifierOverrides,
+        @NotNull  DieMode             dieMode,
+        @NotNull  BlockAppearAnimation appearAnimation,
+        @NotNull  SlidingWindowMode   slidingWindowMode,
+                  double              slidingWindowTimeSeconds,
+        @Nullable Location            failLocation,
+        @Nullable Location            completeLocation
+    ) {
+        this(
+            id, displayName, difficulty, theme, lengthType, fixedLength,
+            blockMode, slidingWindowAhead, cleanupDelaySeconds,
+            entryMode, dedicatedWorldName, dedicatedWorldRadius, shared, seed,
+            leaderboardCourseId, fixedYaw, platformShapes,
+            minGap, maxGap, minHeightDelta, maxHeightDelta,
+            platformMinSize, platformMaxSize, obstacleChance, modifierChance,
+            modifierOverrides,
+            dieMode, appearAnimation, slidingWindowMode, slidingWindowTimeSeconds,
+            failLocation, completeLocation,
+            lengthType == LengthType.INFINITE ? 90.0 : 360.0,
+            null,
+            0,
+            15
+        );
     }
 
     public GeneratorTemplate(
@@ -286,5 +343,37 @@ public record GeneratorTemplate(
     /** Resolved modifier chance [0, 1]. */
     public double resolvedModifierChance() {
         return modifierChance >= 0 ? modifierChance : difficulty.getDefaultModifierChance();
+    }
+
+    /**
+     * Resolved direction cone angle in degrees [0, 360].
+     * Defaults to 90.0 for infinite runs, 360.0 for unconstrained runs.
+     */
+    public double resolvedDirectionCone() {
+        if (directionCone >= 0.0) return directionCone;
+        return lengthType == LengthType.INFINITE ? 90.0 : 360.0;
+    }
+
+    /**
+     * Resolved base yaw direction for the cone projection.
+     */
+    public float resolvedDirectionYaw(float defaultYaw) {
+        if (directionYaw != null) return directionYaw;
+        if (fixedYaw != null) return fixedYaw;
+        return defaultYaw;
+    }
+
+    /**
+     * Resolved corridor width in blocks (0 = disabled / unconstrained cone).
+     */
+    public int resolvedCorridorWidth() {
+        return Math.max(0, corridorWidth);
+    }
+
+    /**
+     * Resolved maximum height deviation in blocks from start Y (0 = disabled).
+     */
+    public int resolvedMaxHeightDeviation() {
+        return Math.max(0, maxHeightDeviation);
     }
 }

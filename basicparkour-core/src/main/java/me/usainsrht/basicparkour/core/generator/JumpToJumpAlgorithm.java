@@ -9,6 +9,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -119,6 +120,16 @@ public final class JumpToJumpAlgorithm {
     }
 
     /**
+     * Normalizes an angle in degrees to the range (-180, 180].
+     */
+    public static float normalizeDegrees(float degrees) {
+        degrees = degrees % 360f;
+        if (degrees > 180f) degrees -= 360f;
+        if (degrees <= -180f) degrees += 360f;
+        return degrees;
+    }
+
+    /**
      * Generates a single subsequent platform, chained from {@code lastCenter}.
      *
      * @param template      generator template
@@ -138,6 +149,52 @@ public final class JumpToJumpAlgorithm {
         int platformIndex,
         @NotNull Random rng
     ) {
+        return generateNext(template, world, lastCenter, lastYawDeg, lastYawDeg, null, null, platformIndex, rng);
+    }
+
+    /**
+     * Generates a single subsequent platform, chained from {@code lastCenter} with an explicit base heading.
+     */
+    @NotNull
+    public static GeneratedPlatform generateNext(
+        @NotNull GeneratorTemplate template,
+        @NotNull World world,
+        @NotNull Location lastCenter,
+        float lastYawDeg,
+        float baseYawDeg,
+        int platformIndex,
+        @NotNull Random rng
+    ) {
+        return generateNext(template, world, lastCenter, lastYawDeg, baseYawDeg, null, null, platformIndex, rng);
+    }
+
+    /**
+     * Generates a single subsequent platform, chained from {@code lastCenter} with directional cone,
+     * optional corridor boundary, height tethering, and overlap/collision avoidance.
+     *
+     * @param template      generator template
+     * @param world         the world (used only to construct Locations)
+     * @param lastCenter    centre of the previous platform
+     * @param lastYawDeg    outgoing heading of the previous jump (Minecraft yaw degrees)
+     * @param baseYawDeg    base heading of the run (reference angle for cone projection)
+     * @param originCenter  start location of the run (used for corridor / cone origin / height tethering)
+     * @param recentCenters recent platform center locations for self-overlap / collision avoidance
+     * @param platformIndex zero-based index of this new platform
+     * @param rng           seeded random; caller owns its lifecycle
+     * @return the generated platform descriptor
+     */
+    @NotNull
+    public static GeneratedPlatform generateNext(
+        @NotNull GeneratorTemplate template,
+        @NotNull World world,
+        @NotNull Location lastCenter,
+        float lastYawDeg,
+        float baseYawDeg,
+        @Nullable Location originCenter,
+        @Nullable List<Location> recentCenters,
+        int platformIndex,
+        @NotNull Random rng
+    ) {
         GeneratorTheme theme = template.theme();
 
         // ── 1. Platform shape ──────────────────────────────────────────────
@@ -145,11 +202,23 @@ public final class JumpToJumpAlgorithm {
         String shape = shapes.get(rng.nextInt(shapes.size()));
         boolean isOneBlock = isSingleBlockShape(shape);
 
-        // ── 2. Height delta (clamped strictly to vanilla jump physics) ─────
+        // ── 2. Height delta (clamped strictly to vanilla jump physics + optional tethering) ─────
         // In vanilla Minecraft, players can jump at most 1.25 blocks up. Delta > 1 is impossible.
         int minDelta = Math.max(-2, template.resolvedMinHeightDelta());
         int maxDelta = Math.min(1, template.resolvedMaxHeightDelta());
         if (minDelta > maxDelta) minDelta = maxDelta;
+
+        int maxHeightDev = template.resolvedMaxHeightDeviation();
+        if (maxHeightDev > 0 && originCenter != null) {
+            int currentYOffset = lastCenter.getBlockY() - originCenter.getBlockY();
+            if (currentYOffset >= maxHeightDev) {
+                maxDelta = Math.min(maxDelta, 0);
+                minDelta = Math.min(minDelta, maxDelta);
+            } else if (currentYOffset <= -maxHeightDev) {
+                minDelta = Math.max(minDelta, 0);
+                maxDelta = Math.max(minDelta, maxDelta);
+            }
+        }
         int heightDelta = minDelta + rng.nextInt(Math.max(1, maxDelta - minDelta + 1));
 
         // ── 3. Maximum distance and heading turn constraints ────────────────
@@ -171,37 +240,145 @@ public final class JumpToJumpAlgorithm {
 
         int minGap = Math.max(2, template.resolvedMinGap());
         int maxGap = Math.min((int) maxDist, Math.max(minGap, template.resolvedMaxGap()));
-        int gap = minGap + rng.nextInt(Math.max(1, maxGap - minGap + 1));
 
-        // On larger gaps from 1-block platforms, tighten turn angle so momentum isn't lost
-        if (gap >= 4 || (isOneBlock && gap >= 3)) {
-            maxSpreadDeg = Math.min(maxSpreadDeg, 25.0);
+        if (maxGap >= 4 || isOneBlock) {
+            maxSpreadDeg = Math.min(maxSpreadDeg, 30.0);
         }
 
-        double spreadRad = Math.toRadians((rng.nextDouble() * 2 - 1) * maxSpreadDeg);
-        double headingRad = Math.toRadians(-lastYawDeg) + spreadRad;
+        // ── 3b. Directional Cone & Corridor constraints ───────────────────────
+        double directionCone = template.resolvedDirectionCone();
+        float effectiveBaseYaw = template.resolvedDirectionYaw(baseYawDeg);
 
-        // ── 4. Compute next centre with physical distance verification ───────
-        double dx = gap * Math.sin(headingRad);
-        double dz = gap * Math.cos(headingRad);
+        double minTurn = -maxSpreadDeg;
+        double maxTurn = maxSpreadDeg;
 
-        int newX = (int) Math.round(lastCenter.getX() + dx);
-        int newY = lastCenter.getBlockY() + heightDelta;
-        int newZ = (int) Math.round(lastCenter.getZ() + dz);
+        if (directionCone < 360.0) {
+            double halfCone = Math.max(0.0, directionCone / 2.0);
+            float currentDeltaFromBase = normalizeDegrees(lastYawDeg - effectiveBaseYaw);
 
-        // Ensure resulting distance is physically jumpable
-        double actualDist = Math.hypot(newX - lastCenter.getX(), newZ - lastCenter.getZ());
-        if (actualDist > maxDist && actualDist > 0.001) {
-            double scale = (maxDist - 0.15) / actualDist;
-            newX = (int) Math.round(lastCenter.getX() + (newX - lastCenter.getX()) * scale);
-            newZ = (int) Math.round(lastCenter.getZ() + (newZ - lastCenter.getZ()) * scale);
-        } else if (actualDist < 2.0 && actualDist > 0.001) {
-            double scale = 2.0 / actualDist;
-            newX = (int) Math.round(lastCenter.getX() + (newX - lastCenter.getX()) * scale);
-            newZ = (int) Math.round(lastCenter.getZ() + (newZ - lastCenter.getZ()) * scale);
+            minTurn = Math.max(-maxSpreadDeg, -halfCone - currentDeltaFromBase);
+            maxTurn = Math.min(maxSpreadDeg, halfCone - currentDeltaFromBase);
+
+            if (minTurn > maxTurn) {
+                // If last yaw was outside cone, steer directly back towards baseYaw
+                if (currentDeltaFromBase > 0) {
+                    minTurn = -maxSpreadDeg;
+                    maxTurn = Math.max(-maxSpreadDeg, -halfCone - currentDeltaFromBase);
+                } else {
+                    maxTurn = maxSpreadDeg;
+                    minTurn = Math.min(maxSpreadDeg, halfCone - currentDeltaFromBase);
+                }
+                if (minTurn > maxTurn) {
+                    double steer = -Math.signum(currentDeltaFromBase) * maxSpreadDeg;
+                    minTurn = steer;
+                    maxTurn = steer;
+                }
+            }
         }
 
-        Location center = new Location(world, newX, newY, newZ);
+        // Optional lateral corridor constraint
+        int corridorWidth = template.resolvedCorridorWidth();
+        if (corridorWidth > 0 && originCenter != null) {
+            double halfCorridor = corridorWidth / 2.0;
+            double rad = Math.toRadians(effectiveBaseYaw);
+            double fx = -Math.sin(rad);
+            double fz = Math.cos(rad);
+
+            double dxOrigin = lastCenter.getX() - originCenter.getX();
+            double dzOrigin = lastCenter.getZ() - originCenter.getZ();
+            double lateralOffset = fz * dxOrigin - fx * dzOrigin;
+
+            float currentDeltaFromBase = normalizeDegrees(lastYawDeg - effectiveBaseYaw);
+
+            if (lateralOffset > halfCorridor * 0.7) {
+                // Drifting to positive lateral offset -> force relative yaw >= 0 to steer back
+                minTurn = Math.max(minTurn, -currentDeltaFromBase);
+            } else if (lateralOffset < -halfCorridor * 0.7) {
+                // Drifting to negative lateral offset -> force relative yaw <= 0 to steer back
+                maxTurn = Math.min(maxTurn, -currentDeltaFromBase);
+            }
+            if (minTurn > maxTurn) {
+                double mid = (minTurn + maxTurn) / 2.0;
+                minTurn = mid;
+                maxTurn = mid;
+            }
+        }
+
+        // ── 4. Compute next centre with physical distance & overlap verification ─
+        Location center = null;
+        float outgoingYaw = lastYawDeg;
+        int attempts = 0;
+        int maxAttempts = (recentCenters != null && !recentCenters.isEmpty()) ? 10 : 1;
+
+        while (attempts < maxAttempts) {
+            attempts++;
+            int gap = minGap + rng.nextInt(Math.max(1, maxGap - minGap + 1));
+            double currentMinTurn = minTurn;
+            double currentMaxTurn = maxTurn;
+
+            if (gap >= 4 || (isOneBlock && gap >= 3)) {
+                // Tighter turns on max sprint jumps
+                double clampedMin = Math.max(currentMinTurn, -25.0);
+                double clampedMax = Math.min(currentMaxTurn, 25.0);
+                if (clampedMin <= clampedMax) {
+                    currentMinTurn = clampedMin;
+                    currentMaxTurn = clampedMax;
+                }
+            }
+
+            double turnDelta = (currentMinTurn >= currentMaxTurn)
+                ? currentMinTurn
+                : currentMinTurn + rng.nextDouble() * (currentMaxTurn - currentMinTurn);
+
+            float candYaw = normalizeDegrees(lastYawDeg + (float) turnDelta);
+            double headingRad = Math.toRadians(-candYaw);
+
+            double dx = gap * Math.sin(headingRad);
+            double dz = gap * Math.cos(headingRad);
+
+            int newX = (int) Math.round(lastCenter.getX() + dx);
+            int newY = lastCenter.getBlockY() + heightDelta;
+            int newZ = (int) Math.round(lastCenter.getZ() + dz);
+
+            // Ensure resulting distance is physically jumpable
+            double actualDist = Math.hypot(newX - lastCenter.getX(), newZ - lastCenter.getZ());
+            if (actualDist > maxDist && actualDist > 0.001) {
+                double scale = (maxDist - 0.15) / actualDist;
+                newX = (int) Math.round(lastCenter.getX() + (newX - lastCenter.getX()) * scale);
+                newZ = (int) Math.round(lastCenter.getZ() + (newZ - lastCenter.getZ()) * scale);
+            } else if (actualDist < 2.0 && actualDist > 0.001) {
+                double scale = 2.0 / actualDist;
+                newX = (int) Math.round(lastCenter.getX() + (newX - lastCenter.getX()) * scale);
+                newZ = (int) Math.round(lastCenter.getZ() + (newZ - lastCenter.getZ()) * scale);
+            }
+
+            Location candCenter = new Location(world, newX, newY, newZ);
+
+            // Check collision/overlap with recent platforms
+            if (recentCenters != null && !recentCenters.isEmpty()) {
+                boolean collides = false;
+                for (Location rc : recentCenters) {
+                    if (rc == null) continue;
+                    double dSq = Math.pow(newX - rc.getX(), 2) + Math.pow(newZ - rc.getZ(), 2);
+                    int dy = Math.abs(newY - rc.getBlockY());
+                    if (dSq < 2.25 && dy <= 2) {
+                        collides = true;
+                        break;
+                    }
+                }
+                if (collides && attempts < maxAttempts) {
+                    continue; // retry another angle/gap
+                }
+            }
+
+            center = candCenter;
+            outgoingYaw = candYaw;
+            break;
+        }
+
+        if (center == null) {
+            center = new Location(world, lastCenter.getX(), lastCenter.getY(), lastCenter.getZ() + 3);
+        }
 
         // ── 5. Build platform blocks ───────────────────────────────────────
         List<PlacedBlock> blocks = new ArrayList<>(buildBlocksForShape(shape, center, world, theme, rng, platformIndex));
@@ -219,8 +396,6 @@ public final class JumpToJumpAlgorithm {
         }
 
         // ── 7. Checkpoint ──────────────────────────────────────────────────
-        float outgoingYaw = (float) Math.toDegrees(-headingRad);
-
         Location regionMin = new Location(world,
             center.getBlockX() - 1, center.getBlockY(), center.getBlockZ() - 1);
         Location regionMax = new Location(world,

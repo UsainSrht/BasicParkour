@@ -125,6 +125,29 @@ platform-shapes:
   - "2x2"
   - "CROSS"
 
+# ── Direction & Cone Constraint ───────────────────────────────────────────────
+# Restricts the allowed heading angle of generated jumps, projecting a forward cone.
+# Prevents endless parkour from looping backwards and overlapping with its own tail!
+# Options:
+#   90.0  - 90° forward cone (±45° from start direction). Ideal for forward endless runs!
+#   180.0 - 180° forward hemisphere (±90°, forward and sideways only, never backwards).
+#   360.0 - Full 360° freedom (can turn in any direction; self-overlap avoidance prevents collisions).
+#   0.0   - Strictly straight line forward.
+direction-cone: 90.0
+
+# Optional fixed direction (yaw) in degrees for the cone projection.
+# If omitted or commented out, dynamically follows the start heading (walk-in yaw or marker yaw).
+# direction-yaw: 0.0
+
+# Optional corridor width (in blocks) to keep the endless parkour centered along
+# the forward axis. Set to 0 to disable and allow free cone expansion.
+corridor-width: 0
+
+# Optional maximum vertical height deviation (in blocks) from the start location.
+# Prevents endless runs from endlessly climbing to the sky or diving into the void.
+# Set to 0 to disable.
+max-height-deviation: 15
+
 # ── Difficulty overrides (optional) ──────────────────────────────────────────
 # Vanilla Minecraft physics note:
 # Maximum vanilla jump height without potion effects is 1.25 blocks (+1 block elevation).
