@@ -93,4 +93,16 @@ public interface GeneratorManager {
     CompletableFuture<@Nullable ParkourSession> generate(@NotNull Player player,
                                                           @NotNull GeneratorTemplate template,
                                                           long customSeed);
+
+    /**
+     * Updates block-level packet visibility for the given player.
+     *
+     * <p>If the player is in a parkour session, blocks from other active generated courses
+     * at the same location/world are hidden (sent as AIR via packets). If the player is a
+     * spectator (not in parkour), all generated parkour blocks in the world are restored
+     * to their real materials.</p>
+     *
+     * @param player the player whose block visibility should be updated
+     */
+    void updateBlockVisibilityForPlayer(@NotNull Player player);
 }

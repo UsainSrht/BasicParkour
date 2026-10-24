@@ -173,8 +173,8 @@ public final class PlayerMoveListener implements Listener {
             // Ensure same world
             if (!course.getWorldName().equals(to.getWorld().getName())) continue;
             if (course.getStartRegion().contains(to)) {
-                boolean shouldTeleport = !course.getStartLocations().isEmpty();
-                sessionManager.startSession(player, course, shouldTeleport);
+                // When player walks into the start region, start right there without teleporting
+                sessionManager.startSession(player, course, false);
                 return; // Start at most one course
             }
             if (course.getPortalRegion().isPresent() && course.getPortalRegion().get().contains(to)) {

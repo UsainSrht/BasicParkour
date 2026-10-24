@@ -785,6 +785,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     // Visibility management
     // -----------------------------------------------------------------------
 
+    /** Tracks which players were hidden from which viewers by BasicParkour. */
+    private final Map<UUID, Set<UUID>> hiddenByParkour = new ConcurrentHashMap<>();
+
     private void applyVisibility(@NotNull Player newPlayer) {
         String mode = getVisibilityMode(newPlayer);
         if (mode.equals("TRANSLUCENT")) {
@@ -797,32 +800,58 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             newPlayer.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
         }
 
+        // Hide other parkour runners in the same world from each other, safely respecting Paper's vanish API
         for (ParkourSessionImpl other : sessions.values()) {
             Player otherPlayer = other.getPlayer();
             if (otherPlayer.equals(newPlayer)) continue;
-            switch (mode) {
-                case "NONE" -> {
-                    newPlayer.hidePlayer(plugin, otherPlayer);
-                    otherPlayer.hidePlayer(plugin, newPlayer);
-                }
-                case "TRANSLUCENT" -> {
-                    newPlayer.showPlayer(plugin, otherPlayer);
-                    otherPlayer.showPlayer(plugin, newPlayer);
-                }
-                default -> {
-                    newPlayer.showPlayer(plugin, otherPlayer);
-                    otherPlayer.showPlayer(plugin, newPlayer);
-                }
+            if (!otherPlayer.isOnline()) continue;
+            if (!otherPlayer.getWorld().equals(newPlayer.getWorld())) continue;
+
+            // Only hide if Paper vanish API says player is currently visible
+            if (newPlayer.canSee(otherPlayer)) {
+                newPlayer.hidePlayer(plugin, otherPlayer);
+                hiddenByParkour.computeIfAbsent(newPlayer.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(otherPlayer.getUniqueId());
             }
+            if (otherPlayer.canSee(newPlayer)) {
+                otherPlayer.hidePlayer(plugin, newPlayer);
+                hiddenByParkour.computeIfAbsent(otherPlayer.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(newPlayer.getUniqueId());
+            }
+        }
+
+        // Hide blocks of other generated parkour runs in the same world
+        if (plugin.getGeneratorManager() != null) {
+            plugin.getGeneratorManager().updateBlockVisibilityForPlayer(newPlayer);
         }
     }
 
     private void restoreVisibility(@NotNull Player leavingPlayer) {
         leavingPlayer.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
         playerVisibilityModes.remove(leavingPlayer.getUniqueId());
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            online.showPlayer(plugin, leavingPlayer);
-            leavingPlayer.showPlayer(plugin, online);
+
+        // Restore players that this leaving player had hidden (safely, only those hidden by BasicParkour)
+        Set<UUID> hiddenByLeaving = hiddenByParkour.remove(leavingPlayer.getUniqueId());
+        if (hiddenByLeaving != null) {
+            for (UUID targetUuid : hiddenByLeaving) {
+                Player target = Bukkit.getPlayer(targetUuid);
+                if (target != null && target.isOnline()) {
+                    leavingPlayer.showPlayer(plugin, target);
+                }
+            }
+        }
+
+        // Restore this leaving player to any other players who hid them via BasicParkour
+        for (Map.Entry<UUID, Set<UUID>> entry : hiddenByParkour.entrySet()) {
+            if (entry.getValue().remove(leavingPlayer.getUniqueId())) {
+                Player viewer = Bukkit.getPlayer(entry.getKey());
+                if (viewer != null && viewer.isOnline()) {
+                    viewer.showPlayer(plugin, leavingPlayer);
+                }
+            }
+        }
+
+        // Restore block visibility so as a spectator they can see generated parkour blocks
+        if (plugin.getGeneratorManager() != null) {
+            plugin.getGeneratorManager().updateBlockVisibilityForPlayer(leavingPlayer);
         }
     }
 }

@@ -47,13 +47,16 @@ sliding-window-ahead: 15  # How many platforms to keep visible ahead (SLIDING_WI
 cleanup-delay-seconds: 30
 
 # ── Entry mode ────────────────────────────────────────────────────────────────
-# DEDICATED_WORLD — Placed at a random non-overlapping slot (Y from generator.dedicated-world-y)
-#                   in the world below. Best practice: point this at an empty/void world so
-#                   generated blocks never touch player builds.
-# MARKER          — Placed at an admin-defined marker (use /basicparkour setentry).
-entry-mode: DEDICATED_WORLD
-dedicated-world: "world"      # Name of the world to generate in
-dedicated-world-radius: 20000 # Max distance from 0,0 for slot placement
+# WALK_IN         — Starts directly in front of the player without teleporting them away.
+#                   Set up an entry portal area at your spawn (via /bp setentry <id> portal).
+#                   When a player walks into the area, the first platform spawns directly in front
+#                   of them along their heading and they seamlessly continue jumping forward!
+# DEDICATED_WORLD — Placed at a random non-overlapping slot in a dedicated or separate world.
+#                   The player is teleported to the slot origin to start.
+# MARKER          — Placed at an admin-defined fixed marker (use /bp setentry <id> interact).
+entry-mode: WALK_IN
+dedicated-world: "world"      # Name of the world to generate in (for DEDICATED_WORLD)
+dedicated-world-radius: 20000 # Max distance from 0,0 for slot placement (for DEDICATED_WORLD)
 
 # ── Session sharing ───────────────────────────────────────────────────────────
 # false = each player gets their own private instance (solo)

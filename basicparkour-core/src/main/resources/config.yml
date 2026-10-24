@@ -37,13 +37,20 @@ storage:
     # HikariCP pool size (recommend 5-10 for most servers)
     pool-size: 10
 
-# ─── Visibility ───────────────────────────────────────────────────────────────
+# ─── Visibility & Isolation ───────────────────────────────────────────────────
+# Spectators (players NOT in parkour) can always see players doing parkour and their generated blocks.
+# Players IN parkour will NOT see other players doing parkour or blocks from other parkour courses
+# at the same location (packets are isolated so you only see your own course!).
+#
+# Paper Vanish API Compatibility:
+# Vanished staff are checked with player.canSee(other). BasicParkour will NEVER reveal or un-vanish
+# staff members.
 visibility:
   # Default visibility mode for players in active parkour sessions.
   # Options:
-  #   ALL         - Players see everyone normally (Recommended for SMP/Skyblock/Factions).
+  #   ALL         - Players see everyone normally (isolated from other parkour runners at same location).
   #   TRANSLUCENT - Other players appear as semi-transparent ghosts via scoreboard teams and invisibility.
-  #   NONE        - Other parkour players are completely hidden from view.
+  #   NONE        - Other players are completely hidden from view.
   # Note: Players can also cycle their visibility with /pk visibility or the hotbar item.
   default: ALL
 
@@ -345,5 +352,14 @@ generator:
       obstacle-chance: 0.25
       modifier-chance: 0.15
 
-  # Entry points registered via /basicparkour setentry.
+  # Entry points registered via /basicparkour setentry <templateId> [portal|interact].
+  #
+  # HOW TO SET UP A SPAWN WALK-IN PARKOUR AREA:
+  # 1. Stand at corner 1 of your spawn walk-in area and type: /bp pos1 (or use the wand)
+  # 2. Stand at corner 2 of your spawn walk-in area and type: /bp pos2
+  # 3. Type: /bp setentry example_generated portal
+  # When a player walks into this area, their endless parkour starts right in front of them without teleporting!
+  #
+  # HOW TO SET UP AN INTERACT (SIGN / BUTTON) ENTRY:
+  # Stand at the block and type: /bp setentry <templateId> interact
   entry-points: {}

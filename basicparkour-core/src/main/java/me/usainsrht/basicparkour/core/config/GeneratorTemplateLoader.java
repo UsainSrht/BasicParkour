@@ -126,13 +126,17 @@ public final class GeneratorTemplateLoader {
             plugin.getConfig().getInt("generator.default-cleanup-delay-seconds", 30));
 
         // ── Entry mode ─────────────────────────────────────────────────────
+        String entryModeRaw = cfg.getString("entry-mode", "DEDICATED_WORLD").trim().toUpperCase(Locale.ROOT);
         EntryMode entryMode;
-        try {
-            entryMode = EntryMode.valueOf(
-                cfg.getString("entry-mode", "DEDICATED_WORLD").toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            warn(file, "Invalid entry-mode: " + cfg.getString("entry-mode"));
-            entryMode = EntryMode.DEDICATED_WORLD;
+        if (entryModeRaw.equals("WALK_IN") || entryModeRaw.equals("SPAWN") || entryModeRaw.equals("AREA")) {
+            entryMode = EntryMode.WALK_IN;
+        } else {
+            try {
+                entryMode = EntryMode.valueOf(entryModeRaw);
+            } catch (IllegalArgumentException ex) {
+                warn(file, "Invalid entry-mode: " + cfg.getString("entry-mode"));
+                entryMode = EntryMode.DEDICATED_WORLD;
+            }
         }
         String dedicatedWorld = cfg.getString("dedicated-world");
         int dedicatedRadius = cfg.getInt("dedicated-world-radius", 100_000);

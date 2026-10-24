@@ -18,5 +18,13 @@ public enum EntryMode {
      * at the desired start point. Useful for placing generated parkours at fixed
      * positions in a lobby world.
      */
-    MARKER
+    MARKER,
+
+    /**
+     * The run starts immediately at the player's current location or entry area
+     * without teleporting them away. The first platform generates directly in front
+     * of the player in their walking direction, allowing players to walk/run straight
+     * into endless parkour from a spawn or lobby area.
+     */
+    WALK_IN
 }

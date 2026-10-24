@@ -77,6 +77,27 @@ public final class JumpToJumpAlgorithm {
         @NotNull Location startLocation,
         @NotNull Random rng
     ) {
+        return generateStart(template, world, startLocation, 0f, rng);
+    }
+
+    /**
+     * Generates the <em>first</em> platform at the given start location (index 0) with an explicit heading.
+     *
+     * @param template       generator template
+     * @param world          the world (used only to construct Locations)
+     * @param startLocation  desired centre of the start platform
+     * @param initialYawDeg  outgoing heading leaving the start platform (e.g. player walk direction)
+     * @param rng            seeded random; caller owns its lifecycle
+     * @return the generated start platform
+     */
+    @NotNull
+    public static GeneratedPlatform generateStart(
+        @NotNull GeneratorTemplate template,
+        @NotNull World world,
+        @NotNull Location startLocation,
+        float initialYawDeg,
+        @NotNull Random rng
+    ) {
         GeneratorTheme theme = template.theme();
         List<String> shapes = template.resolvedPlatformShapes();
         String shape = shapes.get(rng.nextInt(shapes.size()));
@@ -90,11 +111,11 @@ public final class JumpToJumpAlgorithm {
             center.getBlockX() + 2, center.getBlockY() + 3, center.getBlockZ() + 2);
 
         Location spawnLoc = new Location(world,
-            center.getBlockX() + 0.5, center.getBlockY() + 1.0, center.getBlockZ() + 0.5, 0f, 0f);
+            center.getBlockX() + 0.5, center.getBlockY() + 1.0, center.getBlockZ() + 0.5, initialYawDeg, 0f);
         Checkpoint checkpoint = new CheckpointImpl(0, spawnLoc,
             new CourseRegionImpl(regionMin, regionMax));
 
-        return new GeneratedPlatform(center, List.copyOf(blocks), checkpoint, 0, 0f);
+        return new GeneratedPlatform(center, List.copyOf(blocks), checkpoint, 0, initialYawDeg);
     }
 
     /**

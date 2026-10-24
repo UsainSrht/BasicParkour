@@ -114,10 +114,14 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             return CompletableFuture.completedFuture(null);
         }
 
+        // Capture player location & heading on entity/calling thread (Folia-safe)
+        final Location playerLoc = player.getLocation().clone();
+        final float playerYaw = playerLoc.getYaw();
+
         // ── Phase 1: async math (no Bukkit world access) ───────────────────
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return doAsyncMath(player, template, customSeed);
+                return doAsyncMath(player, template, customSeed, playerLoc, playerYaw);
             } catch (Exception ex) {
                 plugin.getLogger().log(Level.SEVERE,
                     "[Generator] Math phase failed for " + player.getName(), ex);
@@ -155,10 +159,17 @@ public final class GeneratorManagerImpl implements GeneratorManager {
     private GenerationData doAsyncMath(
         @NotNull Player player,
         @NotNull GeneratorTemplate template,
-        long seed
+        long seed,
+        @NotNull Location playerLoc,
+        float playerYaw
     ) {
         // Resolve world — Bukkit.getWorld() is safe from async (name lookup only)
-        World world = resolveWorld(template);
+        World world;
+        if (template.entryMode() == EntryMode.WALK_IN) {
+            world = playerLoc.getWorld();
+        } else {
+            world = resolveWorld(template);
+        }
         if (world == null) {
             plugin.getLogger().warning("[Generator] World not found for template '" + template.id() + "'");
             return null;
@@ -167,8 +178,10 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         // Resolve start location + slot
         SlotAllocatorResult slotResult;
         Location startLoc;
+        float initialYaw = playerYaw;
 
         if (template.entryMode() == EntryMode.DEDICATED_WORLD) {
+            initialYaw = 0f;
             int maxGap      = template.resolvedMaxGap();
             int maxPlatforms = template.lengthType() == LengthType.FIXED
                 ? template.fixedLength()
@@ -189,6 +202,16 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             }
             slotResult = new SlotAllocatorResult(slot.slotId(), world.getName());
             startLoc   = slot.origin();
+        } else if (template.entryMode() == EntryMode.WALK_IN) {
+            // Spawn walk-in: calculate first platform 2.8 blocks in front of the player along their yaw
+            double rad = Math.toRadians(playerYaw);
+            double dx = -Math.sin(rad);
+            double dz = Math.cos(rad);
+            startLoc = new Location(world,
+                playerLoc.getX() + dx * 2.8,
+                playerLoc.getBlockY() - 1,
+                playerLoc.getZ() + dz * 2.8);
+            slotResult = new SlotAllocatorResult(-1, world.getName());
         } else {
             // MARKER mode — read from config (no world API needed)
             org.bukkit.configuration.ConfigurationSection sec =
@@ -201,6 +224,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             double x = sec.getDouble("x"), y = sec.getDouble("y"), z = sec.getDouble("z");
             startLoc   = new Location(world, x, y, z);
             slotResult = new SlotAllocatorResult(-1, world.getName());
+            initialYaw = (float) sec.getDouble("yaw", 0.0);
         }
 
         // ── Pure math: generate all platforms ──────────────────────────────
@@ -212,7 +236,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         List<JumpToJumpAlgorithm.GeneratedPlatform> platforms = new ArrayList<>();
 
         JumpToJumpAlgorithm.GeneratedPlatform first =
-            JumpToJumpAlgorithm.generateStart(template, world, startLoc, rng);
+            JumpToJumpAlgorithm.generateStart(template, world, startLoc, initialYaw, rng);
         platforms.add(first);
 
         Location lastCenter = first.centerLocation();
@@ -292,6 +316,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             scheduler.runAtLocation(chunk.get(0).location(), () -> {
                 for (PlacedBlock pb : chunk) {
                     instance.placeBlock(pb);   // reads original + sets desired — on region thread
+                    hideBlockFromOtherRunners(pb, instance);
                 }
                 f.complete(null);
             });
@@ -325,28 +350,41 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 instance.addPlayer(player);
                 playerCourseMap.put(player.getUniqueId(), data.courseId());
 
-                // Teleport + start session on entity thread
+                // Start session on entity thread (teleport only if not WALK_IN)
                 scheduler.runOnEntity(player, () -> {
-                    Location spawn = data.platforms().get(0).checkpoint().getSpawnLocation();
                     final Location origin = player.getLocation().clone();
-                    player.teleportAsync(spawn).thenRun(() ->
-                        scheduler.runOnEntity(player, () -> {
-                            ParkourSession session = sessionManager.startSession(player, course, true, origin);
-                            sessionFuture.complete(session);
+                    if (template.entryMode() == EntryMode.WALK_IN) {
+                        ParkourSession session = sessionManager.startSession(player, course, false, origin);
+                        sessionFuture.complete(session);
 
-                            if (template.blockMode() == BlockMode.SLIDING_WINDOW) {
-                                // Separate rng for sliding window so it continues from where math left off
-                                Random slidingRng = new Random(data.seed());
-                                // Fast-forward past already-generated platforms
-                                for (int i = 0; i < data.platforms().size() - 1; i++) {
-                                    JumpToJumpAlgorithm.generateNext(template, data.world(),
-                                        new Location(data.world(), 0, 0, 0), 0, i, slidingRng);
-                                }
-                                attachSlidingWindow(instance, template, player, data.world(),
-                                    slidingRng, finalLastCenter, finalLastYaw);
+                        if (template.blockMode() == BlockMode.SLIDING_WINDOW) {
+                            Random slidingRng = new Random(data.seed());
+                            for (int i = 0; i < data.platforms().size() - 1; i++) {
+                                JumpToJumpAlgorithm.generateNext(template, data.world(),
+                                    new Location(data.world(), 0, 0, 0), 0, i, slidingRng);
                             }
-                        })
-                    );
+                            attachSlidingWindow(instance, template, player, data.world(),
+                                slidingRng, finalLastCenter, finalLastYaw);
+                        }
+                    } else {
+                        Location spawn = data.platforms().get(0).checkpoint().getSpawnLocation();
+                        player.teleportAsync(spawn).thenRun(() ->
+                            scheduler.runOnEntity(player, () -> {
+                                ParkourSession session = sessionManager.startSession(player, course, true, origin);
+                                sessionFuture.complete(session);
+
+                                if (template.blockMode() == BlockMode.SLIDING_WINDOW) {
+                                    Random slidingRng = new Random(data.seed());
+                                    for (int i = 0; i < data.platforms().size() - 1; i++) {
+                                        JumpToJumpAlgorithm.generateNext(template, data.world(),
+                                            new Location(data.world(), 0, 0, 0), 0, i, slidingRng);
+                                    }
+                                    attachSlidingWindow(instance, template, player, data.world(),
+                                        slidingRng, finalLastCenter, finalLastYaw);
+                                }
+                            })
+                        );
+                    }
                 });
 
                 return sessionFuture;
@@ -431,6 +469,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                     scheduler.runAtLocation(chunkBlocks.get(0).location(), () -> {
                         for (PlacedBlock pb : chunkBlocks) {
                             instance.placeBlock(pb);
+                            hideBlockFromOtherRunners(pb, instance);
                         }
                     });
                 }
@@ -524,6 +563,62 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             "generator.entry-points." + template.id() + ".world");
         if (markerWorld == null) return null;
         return Bukkit.getWorld(markerWorld);
+    }
+
+    // ── Block Visibility Management ───────────────────────────────────────
+
+    public void hideBlockFromOtherRunners(@NotNull PlacedBlock pb, @Nullable GeneratedCourseInstanceImpl sourceInstance) {
+        World world = pb.location().getWorld();
+        if (world == null) return;
+        for (ParkourSession s : sessionManager.getActiveSessions()) {
+            Player other = s.getPlayer();
+            if (!other.isOnline()) continue;
+            if (!other.getWorld().equals(world)) continue;
+            if (sourceInstance != null && sourceInstance.hasPlayer(other)) continue;
+            scheduler.runOnEntity(other, () -> {
+                if (other.isOnline()) {
+                    other.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
+                }
+            });
+        }
+    }
+
+    @Override
+    public void updateBlockVisibilityForPlayer(@NotNull Player player) {
+        if (!player.isOnline()) return;
+        World world = player.getWorld();
+        boolean inSession = sessionManager.getSession(player).isPresent();
+        GeneratedCourseInstanceImpl myInstance = (GeneratedCourseInstanceImpl) getInstance(player).orElse(null);
+
+        scheduler.runOnEntity(player, () -> {
+            if (!player.isOnline()) return;
+            if (inSession) {
+                // In parkour: hide blocks of other generated courses in the same world
+                for (GeneratedCourseInstanceImpl inst : instances.values()) {
+                    if (inst.equals(myInstance)) continue;
+                    if (!inst.isActive()) continue;
+                    synchronized (inst.placedBlocks) {
+                        for (PlacedBlock pb : inst.placedBlocks) {
+                            if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)) {
+                                player.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Spectator (not in parkour): restore/show all active generated blocks in this world
+                for (GeneratedCourseInstanceImpl inst : instances.values()) {
+                    if (!inst.isActive()) continue;
+                    synchronized (inst.placedBlocks) {
+                        for (PlacedBlock pb : inst.placedBlocks) {
+                            if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)) {
+                                player.sendBlockChange(pb.location(), pb.desiredMaterial().createBlockData());
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     // ── Shutdown ───────────────────────────────────────────────────────────

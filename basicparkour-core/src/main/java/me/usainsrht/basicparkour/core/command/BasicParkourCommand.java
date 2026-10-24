@@ -307,6 +307,69 @@ public final class BasicParkourCommand {
                             return Command.SINGLE_SUCCESS;
                         })));
 
+        // generate <player> <templateId> (admin)
+        root.then(Commands.literal(cfg.getCmdGenerate())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            Bukkit.getOnlinePlayers().forEach(p -> builder.suggest(p.getName()));
+                            return builder.buildFuture();
+                        })
+                        .then(Commands.argument("templateId", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                                            .forEach(t -> builder.suggest(t.id()));
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    cmdGenerate(ctx.getSource().getSender(),
+                                            StringArgumentType.getString(ctx, "player"),
+                                            StringArgumentType.getString(ctx, "templateId"));
+                                    return Command.SINGLE_SUCCESS;
+                                }))));
+
+        // setentry <templateId> [type] (admin)
+        root.then(Commands.literal(cfg.getCmdSetEntry())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("templateId", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                                    .forEach(t -> builder.suggest(t.id()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            cmdSetEntry(ctx.getSource().getSender(),
+                                    StringArgumentType.getString(ctx, "templateId"), "portal");
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("type", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    builder.suggest("portal");
+                                    builder.suggest("interact");
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    cmdSetEntry(ctx.getSource().getSender(),
+                                            StringArgumentType.getString(ctx, "templateId"),
+                                            StringArgumentType.getString(ctx, "type"));
+                                    return Command.SINGLE_SUCCESS;
+                                }))));
+
+        // removeentry <templateId> (admin)
+        root.then(Commands.literal(cfg.getCmdRemoveEntry())
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .then(Commands.argument("templateId", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            var sec = plugin.getConfig().getConfigurationSection("generator.entry-points");
+                            if (sec != null) sec.getKeys(false).forEach(builder::suggest);
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            cmdRemoveEntry(ctx.getSource().getSender(),
+                                    StringArgumentType.getString(ctx, "templateId"));
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
         // create <id> <name> (admin)
         root.then(Commands.literal(cfg.getCmdCreate())
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
@@ -757,12 +820,23 @@ public final class BasicParkourCommand {
         cfg2.set("world", worldName);
 
         if ("portal".equals(typeKey)) {
-            cfg2.set("min.x", loc.getBlockX() - 1);
-            cfg2.set("min.y", loc.getBlockY());
-            cfg2.set("min.z", loc.getBlockZ() - 1);
-            cfg2.set("max.x", loc.getBlockX() + 1);
-            cfg2.set("max.y", loc.getBlockY() + 2);
-            cfg2.set("max.z", loc.getBlockZ() + 1);
+            Location p1 = editorManager != null ? editorManager.getPos1(player) : null;
+            Location p2 = editorManager != null ? editorManager.getPos2(player) : null;
+            if (p1 != null && p2 != null && p1.getWorld().equals(p2.getWorld())) {
+                cfg2.set("min.x", Math.min(p1.getX(), p2.getX()));
+                cfg2.set("min.y", Math.min(p1.getY(), p2.getY()));
+                cfg2.set("min.z", Math.min(p1.getZ(), p2.getZ()));
+                cfg2.set("max.x", Math.max(p1.getX(), p2.getX()) + 1.0);
+                cfg2.set("max.y", Math.max(p1.getY(), p2.getY()) + 1.0);
+                cfg2.set("max.z", Math.max(p1.getZ(), p2.getZ()) + 1.0);
+            } else {
+                cfg2.set("min.x", loc.getBlockX() - 1);
+                cfg2.set("min.y", loc.getBlockY());
+                cfg2.set("min.z", loc.getBlockZ() - 1);
+                cfg2.set("max.x", loc.getBlockX() + 1);
+                cfg2.set("max.y", loc.getBlockY() + 2);
+                cfg2.set("max.z", loc.getBlockZ() + 1);
+            }
         } else {
             Block targetBlock = player.getTargetBlockExact(5);
             Location blockLoc = targetBlock != null ? targetBlock.getLocation() : loc;
