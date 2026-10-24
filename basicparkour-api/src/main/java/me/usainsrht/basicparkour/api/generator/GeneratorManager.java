@@ -44,6 +44,13 @@ public interface GeneratorManager {
     @NotNull
     Optional<GeneratorTemplate> getTemplate(@NotNull String id);
 
+    /**
+     * Registers or replaces a generator template in memory.
+     *
+     * @param template the template to register
+     */
+    default void registerTemplate(@NotNull GeneratorTemplate template) {}
+
     // ── Instance tracking ──────────────────────────────────────────────────
 
     /**
@@ -105,4 +112,14 @@ public interface GeneratorManager {
      * @param player the player whose block visibility should be updated
      */
     void updateBlockVisibilityForPlayer(@NotNull Player player);
+
+    /**
+     * Notifies the generator of a player advancing or skipping to a platform.
+     * Triggers generation of platforms ahead in sliding window mode.
+     *
+     * @param player        the runner
+     * @param platformIndex the reached platform index
+     */
+    default void notifyPlayerProgress(@NotNull Player player, int platformIndex) {}
 }
+

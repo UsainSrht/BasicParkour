@@ -79,34 +79,56 @@ public final class PlayerMoveListener implements Listener {
             return;
         }
 
-        // ── 1. Void check ────────────────────────────────────────────────────
+        // ── 1. End region check ──────────────────────────────────────────────
+        if (course.getEndRegion().contains(to)) {
+            sessionManager.completeSession(player);
+            return;
+        }
+
+        // ── 2. Checkpoint region check (supports skipping in generated courses) ──
+        java.util.List<me.usainsrht.basicparkour.api.course.Checkpoint> checkpoints = course.getCheckpoints();
+        int currentIdx = session.getCurrentCheckpointIndex();
+        boolean isGenerated = course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse;
+
+        if (isGenerated) {
+            // Check upcoming checkpoints in case player jumped ahead skipping intermediate blocks
+            for (int i = currentIdx + 1; i < checkpoints.size(); i++) {
+                me.usainsrht.basicparkour.api.course.Checkpoint cp = checkpoints.get(i);
+                if (cp.getTriggerRegion().contains(to)) {
+                    sessionManager.handleCheckpointReach(player, cp);
+                    break;
+                }
+            }
+        } else {
+            session.getNextCheckpoint().ifPresent(checkpoint -> {
+                if (checkpoint.getTriggerRegion().contains(to)) {
+                    sessionManager.handleCheckpointReach(player, checkpoint);
+                }
+            });
+        }
+
+        // ── 3. Void check ────────────────────────────────────────────────────
         double failY = to.getWorld().getMinHeight() - 5;
         if (course.getMinY().isPresent()) {
             failY = course.getMinY().get();
-        } else if (course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse) {
-            me.usainsrht.basicparkour.api.course.Checkpoint nextCp = session.getNextCheckpoint().orElse(null);
-            if (nextCp != null) {
-                failY = nextCp.getSpawnLocation().getY() - 3.0;
+        } else if (isGenerated) {
+            var lastCp = session.getLastCheckpoint().orElse(null);
+            var nextCp = session.getNextCheckpoint().orElse(null);
+            double refY = to.getY();
+            if (lastCp != null && nextCp != null) {
+                refY = Math.min(lastCp.getSpawnLocation().getY(), nextCp.getSpawnLocation().getY());
+            } else if (lastCp != null) {
+                refY = lastCp.getSpawnLocation().getY();
+            } else if (nextCp != null) {
+                refY = nextCp.getSpawnLocation().getY();
             }
+            failY = refY - 3.5;
         }
         
         if (to.getY() < failY) {
             sessionManager.failSession(player, ParkourSession.FailReason.VOID);
             return;
         }
-
-        // ── 2. End region check ──────────────────────────────────────────────
-        if (course.getEndRegion().contains(to)) {
-            sessionManager.completeSession(player);
-            return;
-        }
-
-        // ── 3. Checkpoint region check ───────────────────────────────────────
-        session.getNextCheckpoint().ifPresent(checkpoint -> {
-            if (checkpoint.getTriggerRegion().contains(to)) {
-                sessionManager.handleCheckpointReach(player, checkpoint);
-            }
-        });
 
         // ── 4. Block modifier check ───────────────────────────────────────────
         checkModifiers(player, session, to);

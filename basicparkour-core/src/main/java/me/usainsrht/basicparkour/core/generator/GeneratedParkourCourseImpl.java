@@ -76,10 +76,13 @@ public final class GeneratedParkourCourseImpl implements GeneratedParkourCourse 
     @Override @NotNull public me.usainsrht.basicparkour.api.course.BlockListMode getBlockListMode() { return me.usainsrht.basicparkour.api.course.BlockListMode.BLACKLIST; }
     @Override @NotNull public Optional<Integer> getMinY() { return Optional.empty(); }
     @Override @NotNull public me.usainsrht.basicparkour.api.course.DieMode getDieMode() {
-        if (template.lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE) {
-            return me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE;
-        }
-        return me.usainsrht.basicparkour.api.course.DieMode.RESTART_DIE;
+        return template.dieMode();
+    }
+    @Override @NotNull public Optional<Location> getFailLocation() {
+        return Optional.ofNullable(template.failLocation());
+    }
+    @Override @NotNull public Optional<Location> getCompleteLocation() {
+        return Optional.ofNullable(template.completeLocation());
     }
     @Override @NotNull @Unmodifiable public List<Checkpoint> getCheckpoints() { return Collections.unmodifiableList(checkpoints); }
 

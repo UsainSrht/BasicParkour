@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Detects when players should be placed into a generated parkour run.
@@ -51,8 +52,20 @@ public final class GeneratorEntryListener implements Listener {
     /** Loaded interact entry points (block location key → templateId). */
     private final Map<String, String> interactEntries = new HashMap<>();
 
-    /** Per-player cooldown to avoid triggering twice on the same block change. */
-    private final Set<UUID> portalCooldown = Collections.newSetFromMap(new WeakHashMap<>());
+    /** Per-player timestamp cooldown to avoid re-triggering immediately when teleported or moving. */
+    private final Map<UUID, Long> entryCooldownUntil = new ConcurrentHashMap<>();
+
+    public void setEntryCooldown(@NotNull UUID uuid, long durationMillis) {
+        entryCooldownUntil.put(uuid, System.currentTimeMillis() + durationMillis);
+    }
+
+    public boolean isOnCooldown(@NotNull UUID uuid) {
+        Long until = entryCooldownUntil.get(uuid);
+        if (until == null) return false;
+        if (System.currentTimeMillis() < until) return true;
+        entryCooldownUntil.remove(uuid);
+        return false;
+    }
 
     public GeneratorEntryListener(
         @NotNull BasicParkourPlugin plugin,
@@ -113,11 +126,8 @@ public final class GeneratorEntryListener implements Listener {
         // Only process block changes
         if (sameBlock(from, to)) return;
 
-        // Cooldown: skip if just triggered
-        if (portalCooldown.contains(player.getUniqueId())) {
-            portalCooldown.remove(player.getUniqueId());
-            return;
-        }
+        // Cooldown: skip if just triggered or recently left/failed a session
+        if (isOnCooldown(player.getUniqueId())) return;
 
         // Already in a session — skip
         if (plugin.getBasicParkourAPI().getSessionManager().getSession(player).isPresent()) return;
@@ -128,7 +138,7 @@ public final class GeneratorEntryListener implements Listener {
         for (PortalEntry entry : portalEntries) {
             if (!entry.worldName().equals(worldName)) continue;
             if (entry.contains(to)) {
-                portalCooldown.add(player.getUniqueId());
+                setEntryCooldown(player.getUniqueId(), 2500L);
                 startGeneratedRun(player, entry.templateId());
                 return;
             }
@@ -139,7 +149,8 @@ public final class GeneratorEntryListener implements Listener {
     public void onPlayerInteract(@NotNull PlayerInteractEvent event) {
         Block block = event.getClickedBlock();
         if (block == null) return;
-        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK
+            && event.getAction() != org.bukkit.event.block.Action.PHYSICAL) return;
 
         Player player = event.getPlayer();
 
@@ -165,7 +176,7 @@ public final class GeneratorEntryListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(@NotNull PlayerQuitEvent event) {
         generatorManager.onSessionEnd(event.getPlayer());
-        portalCooldown.remove(event.getPlayer().getUniqueId());
+        entryCooldownUntil.remove(event.getPlayer().getUniqueId());
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 package me.usainsrht.basicparkour.api.generator;
 
+import me.usainsrht.basicparkour.api.course.DieMode;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,6 +33,8 @@ import java.util.Map;
  * @param seed                    Fixed seed; {@code null} = random per run.
  * @param leaderboardCourseId     Course ID used for leaderboard storage (all generated runs with
  *                                the same value share one leaderboard).
+ * @param fixedYaw                Fixed yaw angle for WALK_IN entry mode.
+ * @param platformShapes          List of allowed platform shapes (e.g. 1x1, 2x2, 3x3).
  * @param minGap                  Override for minimum horizontal gap between platforms.
  * @param maxGap                  Override for maximum horizontal gap.
  * @param minHeightDelta          Override for minimum vertical delta per jump.
@@ -40,6 +44,12 @@ import java.util.Map;
  * @param obstacleChance          Override for probability [0, 1] of an obstacle on each platform.
  * @param modifierChance          Override for probability [0, 1] of a special modifier block.
  * @param modifierOverrides       Material → modifier key mapping injected into the generated course.
+ * @param dieMode                 DieMode when player fails (FAIL_DIE vs RESTART_DIE).
+ * @param appearAnimation         Animation when new blocks appear in endless/sliding runs (NONE, DEFAULT, GROW).
+ * @param slidingWindowMode       Sliding window mode (BLOCKS, TIME, DUAL).
+ * @param slidingWindowTimeSeconds Lifespan in seconds for platforms under TIME or DUAL mode (0 = disabled).
+ * @param failLocation            Optional custom location to teleport to on fail/leave.
+ * @param completeLocation        Optional custom location to teleport to on complete.
  */
 public record GeneratorTemplate(
     @NotNull  String             id,
@@ -57,6 +67,7 @@ public record GeneratorTemplate(
               boolean             shared,
     @Nullable Long                seed,
     @NotNull  String              leaderboardCourseId,
+    @Nullable Float               fixedYaw,
 
     // ── Platform shapes ───────────────────────────────────────────────────
     @NotNull @Unmodifiable List<String> platformShapes,
@@ -71,7 +82,15 @@ public record GeneratorTemplate(
               double              obstacleChance,
               double              modifierChance,
 
-    @NotNull @Unmodifiable Map<Material, String> modifierOverrides
+    @NotNull @Unmodifiable Map<Material, String> modifierOverrides,
+
+    // ── Endless / session options ─────────────────────────────────────────
+    @NotNull  DieMode             dieMode,
+    @NotNull  BlockAppearAnimation appearAnimation,
+    @NotNull  SlidingWindowMode   slidingWindowMode,
+              double              slidingWindowTimeSeconds,
+    @Nullable Location            failLocation,
+    @Nullable Location            completeLocation
 ) {
     public GeneratorTemplate {
         platformShapes = List.copyOf(platformShapes);
@@ -108,10 +127,105 @@ public record GeneratorTemplate(
             id, displayName, difficulty, theme, lengthType, fixedLength,
             blockMode, slidingWindowAhead, cleanupDelaySeconds,
             entryMode, dedicatedWorldName, dedicatedWorldRadius, shared, seed,
-            leaderboardCourseId, List.of(),
+            leaderboardCourseId, null, List.of(),
             minGap, maxGap, minHeightDelta, maxHeightDelta,
             platformMinSize, platformMaxSize, obstacleChance, modifierChance,
-            modifierOverrides
+            modifierOverrides,
+            lengthType == LengthType.INFINITE ? DieMode.FAIL_DIE : DieMode.RESTART_DIE,
+            BlockAppearAnimation.DEFAULT,
+            SlidingWindowMode.BLOCKS,
+            0.0,
+            null,
+            null
+        );
+    }
+
+    public GeneratorTemplate(
+        @NotNull  String             id,
+        @NotNull  String             displayName,
+        @NotNull  GeneratorDifficulty difficulty,
+        @NotNull  GeneratorTheme      theme,
+        @NotNull  LengthType          lengthType,
+                  int                 fixedLength,
+        @NotNull  BlockMode           blockMode,
+                  int                 slidingWindowAhead,
+                  int                 cleanupDelaySeconds,
+        @NotNull  EntryMode           entryMode,
+        @Nullable String              dedicatedWorldName,
+                  int                 dedicatedWorldRadius,
+                  boolean             shared,
+        @Nullable Long                seed,
+        @NotNull  String              leaderboardCourseId,
+        @Nullable Float               fixedYaw,
+        @NotNull  List<String>        platformShapes,
+                  int                 minGap,
+                  int                 maxGap,
+                  int                 minHeightDelta,
+                  int                 maxHeightDelta,
+                  int                 platformMinSize,
+                  int                 platformMaxSize,
+                  double              obstacleChance,
+                  double              modifierChance,
+        @NotNull Map<Material, String> modifierOverrides
+    ) {
+        this(
+            id, displayName, difficulty, theme, lengthType, fixedLength,
+            blockMode, slidingWindowAhead, cleanupDelaySeconds,
+            entryMode, dedicatedWorldName, dedicatedWorldRadius, shared, seed,
+            leaderboardCourseId, fixedYaw, platformShapes,
+            minGap, maxGap, minHeightDelta, maxHeightDelta,
+            platformMinSize, platformMaxSize, obstacleChance, modifierChance,
+            modifierOverrides,
+            lengthType == LengthType.INFINITE ? DieMode.FAIL_DIE : DieMode.RESTART_DIE,
+            BlockAppearAnimation.DEFAULT,
+            SlidingWindowMode.BLOCKS,
+            0.0,
+            null,
+            null
+        );
+    }
+
+    public GeneratorTemplate(
+        @NotNull  String             id,
+        @NotNull  String             displayName,
+        @NotNull  GeneratorDifficulty difficulty,
+        @NotNull  GeneratorTheme      theme,
+        @NotNull  LengthType          lengthType,
+                  int                 fixedLength,
+        @NotNull  BlockMode           blockMode,
+                  int                 slidingWindowAhead,
+                  int                 cleanupDelaySeconds,
+        @NotNull  EntryMode           entryMode,
+        @Nullable String              dedicatedWorldName,
+                  int                 dedicatedWorldRadius,
+                  boolean             shared,
+        @Nullable Long                seed,
+        @NotNull  String              leaderboardCourseId,
+        @Nullable Float               fixedYaw,
+                  int                 minGap,
+                  int                 maxGap,
+                  int                 minHeightDelta,
+                  int                 maxHeightDelta,
+                  int                 platformMinSize,
+                  int                 platformMaxSize,
+                  double              obstacleChance,
+                  double              modifierChance,
+        @NotNull Map<Material, String> modifierOverrides
+    ) {
+        this(
+            id, displayName, difficulty, theme, lengthType, fixedLength,
+            blockMode, slidingWindowAhead, cleanupDelaySeconds,
+            entryMode, dedicatedWorldName, dedicatedWorldRadius, shared, seed,
+            leaderboardCourseId, fixedYaw, List.of(),
+            minGap, maxGap, minHeightDelta, maxHeightDelta,
+            platformMinSize, platformMaxSize, obstacleChance, modifierChance,
+            modifierOverrides,
+            lengthType == LengthType.INFINITE ? DieMode.FAIL_DIE : DieMode.RESTART_DIE,
+            BlockAppearAnimation.DEFAULT,
+            SlidingWindowMode.BLOCKS,
+            0.0,
+            null,
+            null
         );
     }
 

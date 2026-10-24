@@ -61,6 +61,9 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
     /** Index of the first platform not yet removed by the sliding window. */
     volatile int slidingWindowHead = 0;
 
+    /** Active BlockDisplay entities currently animating block appearance. */
+    public final Set<org.bukkit.entity.BlockDisplay> activeDisplays = ConcurrentHashMap.newKeySet();
+
     /** Handle for the sliding-window repeating task. Null for FULL_UPFRONT. */
     volatile FoliaScheduler.RepeatingTask slidingTask;
 
@@ -102,7 +105,24 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
     public boolean isEmpty() { return playerUuids.isEmpty(); }
 
     /** Marks this instance as inactive. Idempotent; returns true only on first call. */
-    public boolean tryDeactivate() { return active.compareAndSet(true, false); }
+    public boolean tryDeactivate() {
+        boolean deactivated = active.compareAndSet(true, false);
+        if (deactivated) {
+            clearDisplays();
+        }
+        return deactivated;
+    }
+
+    public void clearDisplays() {
+        for (org.bukkit.entity.BlockDisplay display : activeDisplays) {
+            try {
+                if (display.isValid()) {
+                    display.remove();
+                }
+            } catch (Exception ignored) {}
+        }
+        activeDisplays.clear();
+    }
 
     // ── Block placement helper (called on region thread) ───────────────────
 
@@ -129,6 +149,7 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
      * {@link GeneratorManagerImpl} dispatches this per-chunk.
      */
     public void restoreBlocks(@NotNull Logger logger) {
+        clearDisplays();
         int count = 0;
         synchronized (placedBlocks) {
             for (PlacedBlock pb : placedBlocks) {

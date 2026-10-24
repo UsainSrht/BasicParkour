@@ -5,6 +5,7 @@ import me.usainsrht.basicparkour.api.generator.*;
 import me.usainsrht.basicparkour.api.session.ParkourSession;
 import me.usainsrht.basicparkour.core.BasicParkourPlugin;
 import me.usainsrht.basicparkour.core.course.CourseRegionImpl;
+import me.usainsrht.basicparkour.core.generator.animation.BlockAnimationHandler;
 import me.usainsrht.basicparkour.core.scheduling.FoliaScheduler;
 import me.usainsrht.basicparkour.core.session.SessionManager;
 import org.bukkit.Bukkit;
@@ -52,6 +53,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
     private final ConcurrentHashMap<UUID, String> playerCourseMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, SlotAllocator> slotAllocators = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, SlotAllocatorKey> instanceSlotKeys = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, Runnable> playerAheadTriggers = new ConcurrentHashMap<>();
     private final AtomicInteger courseIdSeq = new AtomicInteger(0);
 
     public GeneratorManagerImpl(
@@ -77,6 +79,11 @@ public final class GeneratorManagerImpl implements GeneratorManager {
 
     @Override @NotNull public Optional<GeneratorTemplate> getTemplate(@NotNull String id) {
         return Optional.ofNullable(templates.get(id.toLowerCase()));
+    }
+
+    @Override
+    public void registerTemplate(@NotNull GeneratorTemplate template) {
+        templates.put(template.id().toLowerCase(Locale.ROOT), template);
     }
 
     // ── Instance tracking ──────────────────────────────────────────────────
@@ -203,8 +210,17 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             slotResult = new SlotAllocatorResult(slot.slotId(), world.getName());
             startLoc   = slot.origin();
         } else if (template.entryMode() == EntryMode.WALK_IN) {
-            // Spawn walk-in: calculate first platform 2.8 blocks in front of the player along their yaw
-            double rad = Math.toRadians(playerYaw);
+            // Check if there is an optional fixed direction (yaw) defined in config.yml or template
+            org.bukkit.configuration.ConfigurationSection sec =
+                plugin.getConfig().getConfigurationSection("generator.entry-points." + template.id());
+            if (sec != null && sec.contains("yaw")) {
+                initialYaw = (float) sec.getDouble("yaw");
+            } else if (template.fixedYaw() != null) {
+                initialYaw = template.fixedYaw();
+            }
+
+            // Spawn walk-in: calculate first platform 2.8 blocks in front along initialYaw
+            double rad = Math.toRadians(initialYaw);
             double dx = -Math.sin(rad);
             double dz = Math.cos(rad);
             startLoc = new Location(world,
@@ -224,7 +240,13 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             double x = sec.getDouble("x"), y = sec.getDouble("y"), z = sec.getDouble("z");
             startLoc   = new Location(world, x, y, z);
             slotResult = new SlotAllocatorResult(-1, world.getName());
-            initialYaw = (float) sec.getDouble("yaw", 0.0);
+            if (sec.contains("yaw")) {
+                initialYaw = (float) sec.getDouble("yaw");
+            } else if (template.fixedYaw() != null) {
+                initialYaw = template.fixedYaw();
+            } else {
+                initialYaw = 0.0f;
+            }
         }
 
         // ── Pure math: generate all platforms ──────────────────────────────
@@ -406,77 +428,124 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         float[]    lastYaw    = {initialLastYaw};
         int[]      nextIndex  = {instance.placedPlatformCount.get()};
 
+        Runnable aheadTask = () -> {
+            if (!instance.isActive() || !player.isOnline()) return;
+            Location playerLoc = player.getLocation();
+            int playerPlatformIndex = getPlayerPlatformIndex(instance, playerLoc);
+            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, nextIndex, playerPlatformIndex);
+        };
+        playerAheadTriggers.put(player.getUniqueId(), aheadTask);
+
         FoliaScheduler.RepeatingTask task = scheduler.runRepeatingGlobal(() -> {
-            if (!instance.isActive()) return;
-            if (!player.isOnline()) return;
+            if (!instance.isActive() || !player.isOnline()) return;
 
             Location playerLoc = player.getLocation();
             int playerPlatformIndex = getPlayerPlatformIndex(instance, playerLoc);
 
-            // Remove platforms that are sufficiently behind the player
-            int removeUpTo = playerPlatformIndex - template.slidingWindowAhead();
-            if (removeUpTo > instance.slidingWindowHead) {
-                final int removeTo = removeUpTo - 1;
-                // Dispatch per-chunk restoration on region threads
-                Map<String, List<PlacedBlock>> toRemoveByChunk = new LinkedHashMap<>();
-                synchronized (instance.placedBlocks) {
-                    for (PlacedBlock pb : instance.placedBlocks) {
-                        if (pb.platformIndex() <= removeTo) {
-                            int cx = pb.location().getBlockX() >> 4;
-                            int cz = pb.location().getBlockZ() >> 4;
-                            String key = pb.location().getWorld().getName() + "," + cx + "," + cz;
-                            toRemoveByChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
-                        }
-                    }
-                }
-                for (List<PlacedBlock> chunk : toRemoveByChunk.values()) {
-                    scheduler.runAtLocation(chunk.get(0).location(), () ->
-                        instance.restoreChunkBlocks(chunk, plugin.getLogger()));
-                }
-                instance.slidingWindowHead = removeUpTo;
-            }
-
-            // Generate new platform if player is within range of the last placed
-            int aheadNeeded = playerPlatformIndex + template.slidingWindowAhead();
-            if (aheadNeeded > nextIndex[0] - 1) {
-                // ── Pure math (on global thread, but no world reads) ────────
-                JumpToJumpAlgorithm.GeneratedPlatform newPlatform =
-                    JumpToJumpAlgorithm.generateNext(
-                        template, world, lastCenter[0], lastYaw[0], nextIndex[0], rng);
-
-                lastCenter[0] = newPlatform.centerLocation().clone();
-                lastYaw[0]    = newPlatform.outgoingYawDeg();
-                nextIndex[0]++;
-
-                // Append checkpoint dynamically to ongoing infinite run!
-                instance.getCourseImpl().appendCheckpoint(newPlatform.checkpoint());
-
-                // Stage into instance (not yet placed)
-                for (PlacedBlock pb : newPlatform.placedBlocks()) {
-                    instance.placedBlocks.add(pb);
-                }
-                instance.placedPlatformCount.incrementAndGet();
-
-                // ── Dispatch placement per chunk ────────────────────────────
-                Map<String, List<PlacedBlock>> newByChunk = new LinkedHashMap<>();
-                for (PlacedBlock pb : newPlatform.placedBlocks()) {
-                    int cx = pb.location().getBlockX() >> 4;
-                    int cz = pb.location().getBlockZ() >> 4;
-                    String key = pb.location().getWorld().getName() + "," + cx + "," + cz;
-                    newByChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
-                }
-                for (List<PlacedBlock> chunkBlocks : newByChunk.values()) {
-                    scheduler.runAtLocation(chunkBlocks.get(0).location(), () -> {
-                        for (PlacedBlock pb : chunkBlocks) {
-                            instance.placeBlock(pb);
-                            hideBlockFromOtherRunners(pb, instance);
-                        }
-                    });
-                }
-            }
+            performSlidingWindowSweep(instance, template, playerPlatformIndex);
+            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, nextIndex, playerPlatformIndex);
         }, 10L, 10L);
 
         instance.slidingTask = task;
+    }
+
+    private void performSlidingWindowSweep(
+        @NotNull GeneratedCourseInstanceImpl instance,
+        @NotNull GeneratorTemplate template,
+        int playerPlatformIndex
+    ) {
+        long now = System.currentTimeMillis();
+        long timeoutMs = (long) (template.slidingWindowTimeSeconds() * 1000.0);
+        SlidingWindowMode mode = template.slidingWindowMode();
+        int maxBehind = playerPlatformIndex - template.slidingWindowAhead();
+
+        Map<String, List<PlacedBlock>> toRemoveByChunk = new LinkedHashMap<>();
+        synchronized (instance.placedBlocks) {
+            for (PlacedBlock pb : instance.placedBlocks) {
+                boolean shouldRemove = false;
+                if (mode == SlidingWindowMode.BLOCKS) {
+                    shouldRemove = pb.platformIndex() <= maxBehind;
+                } else if (mode == SlidingWindowMode.TIME) {
+                    shouldRemove = timeoutMs > 0 && (now - pb.placedAtMillis() >= timeoutMs) && pb.platformIndex() <= playerPlatformIndex;
+                } else if (mode == SlidingWindowMode.DUAL) {
+                    boolean blockTrigger = pb.platformIndex() <= maxBehind;
+                    boolean timeTrigger = timeoutMs > 0 && (now - pb.placedAtMillis() >= timeoutMs) && pb.platformIndex() <= playerPlatformIndex;
+                    shouldRemove = blockTrigger || timeTrigger;
+                }
+                if (shouldRemove) {
+                    int cx = pb.location().getBlockX() >> 4;
+                    int cz = pb.location().getBlockZ() >> 4;
+                    String key = pb.location().getWorld().getName() + "," + cx + "," + cz;
+                    toRemoveByChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
+                }
+            }
+        }
+        for (List<PlacedBlock> chunk : toRemoveByChunk.values()) {
+            scheduler.runAtLocation(chunk.get(0).location(), () ->
+                instance.restoreChunkBlocks(chunk, plugin.getLogger()));
+        }
+    }
+
+    private void generateAheadIfNeeded(
+        @NotNull GeneratedCourseInstanceImpl instance,
+        @NotNull GeneratorTemplate template,
+        @NotNull World world,
+        @NotNull Random rng,
+        @NotNull Location[] lastCenter,
+        float[] lastYaw,
+        int[] nextIndex,
+        int playerPlatformIndex
+    ) {
+        int aheadNeeded = playerPlatformIndex + template.slidingWindowAhead();
+        int platformsCreated = 0;
+        int maxPerSweep = Math.max(4, template.slidingWindowAhead());
+
+        while (aheadNeeded > nextIndex[0] - 1 && platformsCreated < maxPerSweep) {
+            final Location prevCenter = lastCenter[0].clone();
+            JumpToJumpAlgorithm.GeneratedPlatform newPlatform =
+                JumpToJumpAlgorithm.generateNext(
+                    template, world, lastCenter[0], lastYaw[0], nextIndex[0], rng);
+
+            lastCenter[0] = newPlatform.centerLocation().clone();
+            lastYaw[0]    = newPlatform.outgoingYawDeg();
+            nextIndex[0]++;
+            platformsCreated++;
+
+            // Append checkpoint dynamically to ongoing infinite run
+            instance.getCourseImpl().appendCheckpoint(newPlatform.checkpoint());
+
+            // Stage into instance
+            for (PlacedBlock pb : newPlatform.placedBlocks()) {
+                instance.placedBlocks.add(pb);
+            }
+            instance.placedPlatformCount.incrementAndGet();
+
+            // Dispatch placement per chunk with configured appear animation
+            BlockAnimationHandler animationHandler = BlockAnimationHandler.of(template.appearAnimation());
+            Map<String, List<PlacedBlock>> newByChunk = new LinkedHashMap<>();
+            for (PlacedBlock pb : newPlatform.placedBlocks()) {
+                int cx = pb.location().getBlockX() >> 4;
+                int cz = pb.location().getBlockZ() >> 4;
+                String key = pb.location().getWorld().getName() + "," + cx + "," + cz;
+                newByChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
+            }
+            for (List<PlacedBlock> chunkBlocks : newByChunk.values()) {
+                scheduler.runAtLocation(chunkBlocks.get(0).location(), () -> {
+                    for (PlacedBlock pb : chunkBlocks) {
+                        animationHandler.animateAndPlace(instance, pb, prevCenter, scheduler, () ->
+                            hideBlockFromOtherRunners(pb, instance));
+                    }
+                });
+            }
+        }
+    }
+
+    @Override
+    public void notifyPlayerProgress(@NotNull Player player, int platformIndex) {
+        Runnable trigger = playerAheadTriggers.get(player.getUniqueId());
+        if (trigger != null) {
+            scheduler.runGlobal(trigger);
+        }
     }
 
     private int getPlayerPlatformIndex(
@@ -501,6 +570,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
     // ── Session end / cleanup ──────────────────────────────────────────────
 
     public void onSessionEnd(@NotNull Player player) {
+        playerAheadTriggers.remove(player.getUniqueId());
         String courseId = playerCourseMap.remove(player.getUniqueId());
         if (courseId == null) return;
 

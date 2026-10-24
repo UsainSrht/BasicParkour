@@ -42,6 +42,34 @@ fixed-length: 30          # Number of platforms (only used when length-type is F
 block-mode: SLIDING_WINDOW
 sliding-window-ahead: 15  # How many platforms to keep visible ahead (SLIDING_WINDOW only)
 
+# ── Sliding Window Mode (dual mode: block-dependent and time-dependent) ───────
+# Options: BLOCKS | TIME | DUAL
+#   BLOCKS - Platforms behind player are removed based strictly on platform distance ahead.
+#   TIME   - Platforms behind player (or stepped on) are removed after X seconds.
+#   DUAL   - Platforms are removed if either distance threshold is exceeded OR time expires!
+sliding-window-mode: DUAL
+sliding-window-time-seconds: 15.0 # Lifespan in seconds for platforms under TIME or DUAL mode
+
+# ── Block Appear Animation ────────────────────────────────────────────────────
+# Defines the animation used when new blocks dynamically appear in endless parkours.
+# Options:
+#   NONE    - Block gets placed directly with no entity or delay.
+#   DEFAULT - Block display entity is spawned at previous platform and smoothly glides to its place.
+#   GROW    - Block display entity spawns at final location, smoothly scales from 0 to 1, then turns into solid block.
+appear-animation: DEFAULT
+
+# ── Failure & Die Mode ────────────────────────────────────────────────────────
+# Controls what happens when a player falls or fails during an endless parkour run.
+# Options:
+#   FAIL_DIE    - Falling ends the run, saves personal best score, and teleports player to fail/exit location.
+#   RESTART_DIE - Falling teleports player to their last reached checkpoint so they can keep going!
+die-mode: FAIL_DIE
+
+# Optional custom location to teleport player when they fail or leave this endless run.
+# Helpful for WALK_IN entry points to send players to a lobby/spawn spot instead of inside the portal.
+# Format: "world,x,y,z,yaw,pitch"
+# fail-location: "world,100.5,64.0,200.5,90.0,0.0"
+
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 # How many seconds to wait after the session ends before removing placed blocks.
 cleanup-delay-seconds: 30
@@ -57,6 +85,10 @@ cleanup-delay-seconds: 30
 entry-mode: WALK_IN
 dedicated-world: "world"      # Name of the world to generate in (for DEDICATED_WORLD)
 dedicated-world-radius: 20000 # Max distance from 0,0 for slot placement (for DEDICATED_WORLD)
+
+# Optional fixed direction (yaw) in degrees for walk-in entry (e.g. 0 = South, 90 = West, 180 = North, 270 = East).
+# If omitted or commented out, the player's real-time walking direction (yaw) will be used dynamically!
+# walk-in-yaw: 180.0
 
 # ── Session sharing ───────────────────────────────────────────────────────────
 # false = each player gets their own private instance (solo)

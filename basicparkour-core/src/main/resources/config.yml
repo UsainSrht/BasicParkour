@@ -74,6 +74,14 @@ session:
   #   START_LOCATION - Teleports player back to the course start.
   teleport-on-complete: NONE
 
+  # Optional custom locations for failing / completing courses.
+  # If configured, teleporting back to joinLocation is replaced by these locations.
+  # This is especially helpful for walk-in entry points so the player doesn't walk right back into the portal!
+  # Format: "world,x,y,z,yaw,pitch" or null
+  fail-location: null
+  complete-location: null
+  exit-location: null
+
   # When true, if a player is teleported away by another plugin or command (e.g. /home, /spawn, /tpa),
   # their active parkour session is cleanly ended instead of running in the background.
   cancel-on-external-teleport: true
@@ -312,6 +320,17 @@ generator:
   # Y level at which generated runs are anchored in dedicated-world mode.
   dedicated-world-y: 80
 
+  # Sound played when player increases block count in endless parkour
+  block-sound:
+    enabled: true
+    sound: "entity.experience_orb.pickup"
+    volume: 0.6
+    pitch: 1.2
+
+  # Optional chat message sent when block count increases (empty by default so only the sound plays)
+  # Placeholders available: <blocks>, <score>, <gained>
+  block-message: ""
+
   # Default difficulty parameters (used unless overridden in the template YAML).
   # Note: In vanilla Minecraft, players can jump at most 1.25 blocks vertically (+1 block elevation).
   difficulties:
@@ -352,14 +371,24 @@ generator:
       obstacle-chance: 0.25
       modifier-chance: 0.15
 
-  # Entry points registered via /basicparkour setentry <templateId> [portal|interact].
+  # Entry points registered via /basicparkour setentry <templateId> [portal|interact] [optional_yaw].
   #
-  # HOW TO SET UP A SPAWN WALK-IN PARKOUR AREA:
-  # 1. Stand at corner 1 of your spawn walk-in area and type: /bp pos1 (or use the wand)
-  # 2. Stand at corner 2 of your spawn walk-in area and type: /bp pos2
-  # 3. Type: /bp setentry example_generated portal
-  # When a player walks into this area, their endless parkour starts right in front of them without teleporting!
+  # ── SETUP FLOW 1: Walk-In Area (Starts where you are, no teleport) ──
+  # 1. Set template 'entry-mode: WALK_IN' in generators/<template>.yml.
+  # 2. Select the area using /bp pos1 and /bp pos2.
+  # 3. Type: /bp setentry <templateId> portal [optional_yaw]
+  #    Example: /bp setentry example_generated portal 180 (forces course to head North)
+  #    Or omit yaw to dynamically follow the player's walking direction!
   #
-  # HOW TO SET UP AN INTERACT (SIGN / BUTTON) ENTRY:
-  # Stand at the block and type: /bp setentry <templateId> interact
+  # ── SETUP FLOW 2: Walk-In Area (Teleports to dedicated world / separate location) ──
+  # 1. Set template 'entry-mode: DEDICATED_WORLD' in generators/<template>.yml.
+  # 2. Select the portal area using /bp pos1 and /bp pos2.
+  # 3. Type: /bp setentry <templateId> portal
+  #    When a player walks in, they teleport to a private slot in the dedicated world!
+  #
+  # ── SETUP FLOW 3: Interactable Block (Starts where you are OR teleports) ──
+  # 1. Look at a sign, button, pressure plate, or block.
+  # 2. Type: /bp setentry <templateId> interact
+  #    (If template is WALK_IN, blocks spawn in front of player; if DEDICATED_WORLD, teleports).
+  #    Alternatively, place a Sign with line 0 = [BasicParkour] and line 1 = <templateId>!
   entry-points: {}

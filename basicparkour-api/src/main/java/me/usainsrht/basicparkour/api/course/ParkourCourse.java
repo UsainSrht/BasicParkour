@@ -183,4 +183,27 @@ public interface ParkourCourse {
     default long getTimeLimitMs() {
         return -1L;
     }
+
+    /**
+     * Optional location to teleport the player to when they fail a session.
+     * If not present, default fallback behavior (join location or start location) is used.
+     *
+     * @return the optional fail location
+     */
+    @NotNull
+    default Optional<Location> getFailLocation() {
+        return Optional.empty();
+    }
+
+    /**
+     * Optional location to teleport the player to when they complete a course.
+     * If not present, default fallback behavior is used.
+     *
+     * @return the optional complete location
+     */
+    @NotNull
+    default Optional<Location> getCompleteLocation() {
+        return Optional.empty();
+    }
 }
+

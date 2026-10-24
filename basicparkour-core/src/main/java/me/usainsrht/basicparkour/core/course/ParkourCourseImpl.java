@@ -38,6 +38,8 @@ public final class ParkourCourseImpl implements ParkourCourse {
     private final Map<Material, String> modifierOverrides;
     private final List<String> rewardCommands;
     private final long timeLimitMs;
+    private final Location failLocation;
+    private final Location completeLocation;
 
     public ParkourCourseImpl(
         @NotNull String id,
@@ -57,6 +59,31 @@ public final class ParkourCourseImpl implements ParkourCourse {
         @NotNull List<String> rewardCommands,
         long timeLimitMs
     ) {
+        this(id, displayName, worldName, startRegion, endRegion, startLocations, portalRegion,
+            portalTeleport, blockList, blockListMode, minY, dieMode, checkpoints, modifierOverrides,
+            rewardCommands, timeLimitMs, null, null);
+    }
+
+    public ParkourCourseImpl(
+        @NotNull String id,
+        @NotNull Component displayName,
+        @NotNull String worldName,
+        @NotNull CourseRegion startRegion,
+        @NotNull CourseRegion endRegion,
+        @NotNull List<Location> startLocations,
+        @Nullable CourseRegion portalRegion,
+        boolean portalTeleport,
+        @NotNull Set<Material> blockList,
+        @NotNull BlockListMode blockListMode,
+        @Nullable Integer minY,
+        @NotNull DieMode dieMode,
+        @NotNull List<Checkpoint> checkpoints,
+        @NotNull Map<Material, String> modifierOverrides,
+        @NotNull List<String> rewardCommands,
+        long timeLimitMs,
+        @Nullable Location failLocation,
+        @Nullable Location completeLocation
+    ) {
         this.id = id;
         this.displayName = displayName;
         this.worldName = worldName;
@@ -73,6 +100,8 @@ public final class ParkourCourseImpl implements ParkourCourse {
         this.modifierOverrides = Map.copyOf(modifierOverrides);
         this.rewardCommands = List.copyOf(rewardCommands);
         this.timeLimitMs = timeLimitMs;
+        this.failLocation = failLocation;
+        this.completeLocation = completeLocation;
     }
 
     @Override @NotNull public String getId() { return id; }
@@ -91,6 +120,8 @@ public final class ParkourCourseImpl implements ParkourCourse {
     @Override @NotNull @Unmodifiable public Map<Material, String> getModifierOverrides() { return modifierOverrides; }
     @Override @NotNull @Unmodifiable public List<String> getRewardCommands() { return rewardCommands; }
     @Override public long getTimeLimitMs() { return timeLimitMs; }
+    @Override @NotNull public Optional<Location> getFailLocation() { return Optional.ofNullable(failLocation); }
+    @Override @NotNull public Optional<Location> getCompleteLocation() { return Optional.ofNullable(completeLocation); }
 
     @Override
     public String toString() {

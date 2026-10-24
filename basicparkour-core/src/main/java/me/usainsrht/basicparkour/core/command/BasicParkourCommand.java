@@ -1,6 +1,7 @@
 package me.usainsrht.basicparkour.core.command;
 
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -12,6 +13,8 @@ import me.usainsrht.basicparkour.api.generator.GeneratorTemplate;
 import me.usainsrht.basicparkour.api.storage.LeaderboardEntry;
 import me.usainsrht.basicparkour.api.storage.PlayerRecord;
 import me.usainsrht.basicparkour.core.BasicParkourPlugin;
+import me.usainsrht.basicparkour.core.config.CourseLoader;
+import me.usainsrht.basicparkour.core.config.GeneratorTemplateLoader;
 import me.usainsrht.basicparkour.core.editor.EditorManager;
 import me.usainsrht.basicparkour.core.generator.GeneratorManagerImpl;
 import me.usainsrht.basicparkour.core.gui.CourseSelectorGUI;
@@ -28,7 +31,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -225,7 +230,7 @@ public final class BasicParkourCommand {
                                     return Command.SINGLE_SUCCESS;
                                 }))));
 
-        // setentry <templateId> [portal|interact] (admin)
+        // setentry <templateId> [portal|interact] [yaw] (admin)
         root.then(Commands.literal(cfg.getCmdSetEntry())
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("templateId", StringArgumentType.word())
@@ -236,7 +241,7 @@ public final class BasicParkourCommand {
                         })
                         .executes(ctx -> {
                             String templateId = StringArgumentType.getString(ctx, "templateId");
-                            cmdSetEntry(ctx.getSource().getSender(), templateId, "portal");
+                            cmdSetEntry(ctx.getSource().getSender(), templateId, "portal", null);
                             return Command.SINGLE_SUCCESS;
                         })
                         .then(Commands.argument("type", StringArgumentType.word())
@@ -248,9 +253,17 @@ public final class BasicParkourCommand {
                                 .executes(ctx -> {
                                     String templateId = StringArgumentType.getString(ctx, "templateId");
                                     String type = StringArgumentType.getString(ctx, "type");
-                                    cmdSetEntry(ctx.getSource().getSender(), templateId, type);
+                                    cmdSetEntry(ctx.getSource().getSender(), templateId, type, null);
                                     return Command.SINGLE_SUCCESS;
-                                }))));
+                                })
+                                .then(Commands.argument("yaw", DoubleArgumentType.doubleArg())
+                                        .executes(ctx -> {
+                                            String templateId = StringArgumentType.getString(ctx, "templateId");
+                                            String type = StringArgumentType.getString(ctx, "type");
+                                            double yaw = DoubleArgumentType.getDouble(ctx, "yaw");
+                                            cmdSetEntry(ctx.getSource().getSender(), templateId, type, yaw);
+                                            return Command.SINGLE_SUCCESS;
+                                        })))));
 
         // removeentry <templateId> (admin)
         root.then(Commands.literal(cfg.getCmdRemoveEntry())
@@ -264,6 +277,46 @@ public final class BasicParkourCommand {
                         .executes(ctx -> {
                             String templateId = StringArgumentType.getString(ctx, "templateId");
                             cmdRemoveEntry(ctx.getSource().getSender(), templateId);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // setfailloc [templateId] (admin)
+        root.then(Commands.literal("setfailloc")
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .executes(ctx -> {
+                    cmdSetFailLoc(ctx.getSource().getSender(), null);
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("templateId", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                                    .forEach(t -> builder.suggest(t.id()));
+                            builder.suggest("global");
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String templateId = StringArgumentType.getString(ctx, "templateId");
+                            cmdSetFailLoc(ctx.getSource().getSender(), templateId);
+                            return Command.SINGLE_SUCCESS;
+                        })));
+
+        // setcompleteloc [templateId] (admin)
+        root.then(Commands.literal("setcompleteloc")
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .executes(ctx -> {
+                    cmdSetCompleteLoc(ctx.getSource().getSender(), null);
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("templateId", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                                    .forEach(t -> builder.suggest(t.id()));
+                            builder.suggest("global");
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String templateId = StringArgumentType.getString(ctx, "templateId");
+                            cmdSetCompleteLoc(ctx.getSource().getSender(), templateId);
                             return Command.SINGLE_SUCCESS;
                         })));
 
@@ -328,47 +381,7 @@ public final class BasicParkourCommand {
                                     return Command.SINGLE_SUCCESS;
                                 }))));
 
-        // setentry <templateId> [type] (admin)
-        root.then(Commands.literal(cfg.getCmdSetEntry())
-                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
-                .then(Commands.argument("templateId", StringArgumentType.word())
-                        .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
-                                    .forEach(t -> builder.suggest(t.id()));
-                            return builder.buildFuture();
-                        })
-                        .executes(ctx -> {
-                            cmdSetEntry(ctx.getSource().getSender(),
-                                    StringArgumentType.getString(ctx, "templateId"), "portal");
-                            return Command.SINGLE_SUCCESS;
-                        })
-                        .then(Commands.argument("type", StringArgumentType.word())
-                                .suggests((ctx, builder) -> {
-                                    builder.suggest("portal");
-                                    builder.suggest("interact");
-                                    return builder.buildFuture();
-                                })
-                                .executes(ctx -> {
-                                    cmdSetEntry(ctx.getSource().getSender(),
-                                            StringArgumentType.getString(ctx, "templateId"),
-                                            StringArgumentType.getString(ctx, "type"));
-                                    return Command.SINGLE_SUCCESS;
-                                }))));
 
-        // removeentry <templateId> (admin)
-        root.then(Commands.literal(cfg.getCmdRemoveEntry())
-                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
-                .then(Commands.argument("templateId", StringArgumentType.word())
-                        .suggests((ctx, builder) -> {
-                            var sec = plugin.getConfig().getConfigurationSection("generator.entry-points");
-                            if (sec != null) sec.getKeys(false).forEach(builder::suggest);
-                            return builder.buildFuture();
-                        })
-                        .executes(ctx -> {
-                            cmdRemoveEntry(ctx.getSource().getSender(),
-                                    StringArgumentType.getString(ctx, "templateId"));
-                            return Command.SINGLE_SUCCESS;
-                        })));
 
         // create <id> <name> (admin)
         root.then(Commands.literal(cfg.getCmdCreate())
@@ -801,6 +814,13 @@ public final class BasicParkourCommand {
     private void cmdSetEntry(@NotNull CommandSender sender,
                               @NotNull String templateId,
                               @NotNull String type) {
+        cmdSetEntry(sender, templateId, type, null);
+    }
+
+    private void cmdSetEntry(@NotNull CommandSender sender,
+                              @NotNull String templateId,
+                              @NotNull String type,
+                              @org.jetbrains.annotations.Nullable Double yaw) {
         if (!(sender instanceof Player player)) {
             send(sender, "<red>Only players can set entry points (must be in-world).</red>");
             return;
@@ -844,6 +864,9 @@ public final class BasicParkourCommand {
             cfg2.set("y", blockLoc.getBlockY());
             cfg2.set("z", blockLoc.getBlockZ());
         }
+        if (yaw != null) {
+            cfg2.set("yaw", yaw);
+        }
         plugin.saveConfig();
 
         if (generatorManager != null && entryListener != null) {
@@ -851,7 +874,7 @@ public final class BasicParkourCommand {
         }
 
         send(sender, "<green>Entry point (" + typeKey + ") registered for template '"
-            + templateId + "' at your location.</green>");
+            + templateId + "'" + (yaw != null ? " with fixed direction (yaw: " + yaw + ")" : "") + ".</green>");
     }
 
     private void cmdRemoveEntry(@NotNull CommandSender sender, @NotNull String templateId) {
@@ -861,6 +884,126 @@ public final class BasicParkourCommand {
             entryListener.reloadEntries();
         }
         send(sender, "<green>Entry point for '" + templateId + "' removed.</green>");
+    }
+
+    private void cmdSetFailLoc(@NotNull CommandSender sender, @Nullable String templateId) {
+        if (!(sender instanceof Player player)) {
+            send(sender, "<red>Only players can set fail locations.</red>");
+            return;
+        }
+        Location loc = player.getLocation();
+        String locStr = loc.getWorld().getName() + ","
+            + String.format(Locale.ROOT, "%.2f,%.2f,%.2f,%.1f,%.1f",
+                loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch());
+
+        if (templateId == null || templateId.isBlank() || templateId.equalsIgnoreCase("global")) {
+            plugin.getConfig().set("session.fail-location", locStr);
+            plugin.saveConfig();
+            send(sender, "<green>Global fail location set to: <white>" + locStr + "</white></green>");
+            return;
+        }
+
+        File genFile = new File(plugin.getDataFolder(), "generators/" + templateId + ".yml");
+        if (genFile.exists()) {
+            try {
+                org.bukkit.configuration.file.YamlConfiguration yml =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(genFile);
+                yml.set("fail-location", locStr);
+                yml.save(genFile);
+
+                GeneratorTemplateLoader templateLoader = new GeneratorTemplateLoader(plugin);
+                GeneratorTemplate reloaded = templateLoader.load(genFile);
+                if (reloaded != null) {
+                    plugin.getBasicParkourAPI().getGeneratorManager().registerTemplate(reloaded);
+                }
+                send(sender, "<green>Fail location for template '<yellow>" + templateId + "</yellow>' set to: <white>" + locStr + "</white></green>");
+            } catch (Exception ex) {
+                send(sender, "<red>Failed to save template file: " + ex.getMessage() + "</red>");
+            }
+            return;
+        }
+
+        File courseFile = new File(plugin.getDataFolder(), "courses/" + templateId + ".yml");
+        if (courseFile.exists()) {
+            try {
+                org.bukkit.configuration.file.YamlConfiguration yml =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(courseFile);
+                yml.set("fail-location", locStr);
+                yml.save(courseFile);
+
+                CourseLoader courseLoader = new CourseLoader(plugin);
+                courseLoader.load(courseFile).ifPresent(c -> {
+                    plugin.getBasicParkourAPI().getCourseRegistry().unregisterCourse(c.getId());
+                    plugin.getBasicParkourAPI().getCourseRegistry().registerCourse(c);
+                });
+                send(sender, "<green>Fail location for course '<yellow>" + templateId + "</yellow>' set to: <white>" + locStr + "</white></green>");
+            } catch (Exception ex) {
+                send(sender, "<red>Failed to save course file: " + ex.getMessage() + "</red>");
+            }
+            return;
+        }
+
+        send(sender, "<red>Template or course file not found: " + templateId + "</red>");
+    }
+
+    private void cmdSetCompleteLoc(@NotNull CommandSender sender, @Nullable String templateId) {
+        if (!(sender instanceof Player player)) {
+            send(sender, "<red>Only players can set complete locations.</red>");
+            return;
+        }
+        Location loc = player.getLocation();
+        String locStr = loc.getWorld().getName() + ","
+            + String.format(Locale.ROOT, "%.2f,%.2f,%.2f,%.1f,%.1f",
+                loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch());
+
+        if (templateId == null || templateId.isBlank() || templateId.equalsIgnoreCase("global")) {
+            plugin.getConfig().set("session.complete-location", locStr);
+            plugin.saveConfig();
+            send(sender, "<green>Global complete location set to: <white>" + locStr + "</white></green>");
+            return;
+        }
+
+        File genFile = new File(plugin.getDataFolder(), "generators/" + templateId + ".yml");
+        if (genFile.exists()) {
+            try {
+                org.bukkit.configuration.file.YamlConfiguration yml =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(genFile);
+                yml.set("complete-location", locStr);
+                yml.save(genFile);
+
+                GeneratorTemplateLoader templateLoader = new GeneratorTemplateLoader(plugin);
+                GeneratorTemplate reloaded = templateLoader.load(genFile);
+                if (reloaded != null) {
+                    plugin.getBasicParkourAPI().getGeneratorManager().registerTemplate(reloaded);
+                }
+                send(sender, "<green>Complete location for template '<yellow>" + templateId + "</yellow>' set to: <white>" + locStr + "</white></green>");
+            } catch (Exception ex) {
+                send(sender, "<red>Failed to save template file: " + ex.getMessage() + "</red>");
+            }
+            return;
+        }
+
+        File courseFile = new File(plugin.getDataFolder(), "courses/" + templateId + ".yml");
+        if (courseFile.exists()) {
+            try {
+                org.bukkit.configuration.file.YamlConfiguration yml =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(courseFile);
+                yml.set("complete-location", locStr);
+                yml.save(courseFile);
+
+                CourseLoader courseLoader = new CourseLoader(plugin);
+                courseLoader.load(courseFile).ifPresent(c -> {
+                    plugin.getBasicParkourAPI().getCourseRegistry().unregisterCourse(c.getId());
+                    plugin.getBasicParkourAPI().getCourseRegistry().registerCourse(c);
+                });
+                send(sender, "<green>Complete location for course '<yellow>" + templateId + "</yellow>' set to: <white>" + locStr + "</white></green>");
+            } catch (Exception ex) {
+                send(sender, "<red>Failed to save course file: " + ex.getMessage() + "</red>");
+            }
+            return;
+        }
+
+        send(sender, "<red>Template or course file not found: " + templateId + "</red>");
     }
 
     // ── In-game Editor Commands ──────────────────────────────────────────────
@@ -1182,6 +1325,8 @@ public final class BasicParkourCommand {
             send(sender, "<gray>/" + r + " " + cfg.getCmdGenerate() + " <player> <templateId></gray> — start generated run");
             send(sender, "<gray>/" + r + " " + cfg.getCmdSetEntry() + " <templateId> [portal|interact]</gray> — register entry point");
             send(sender, "<gray>/" + r + " " + cfg.getCmdRemoveEntry() + " <templateId></gray> — remove entry point");
+            send(sender, "<gray>/" + r + " setfailloc [templateId|global]</gray> — set fail/exit teleport location");
+            send(sender, "<gray>/" + r + " setcompleteloc [templateId|global]</gray> — set complete teleport location");
             send(sender, "<gray>/" + r + " hologram <create|remove|refresh|list></gray> — manage holograms");
             send(sender, "<gray>/" + r + " npc <link|unlink|topholder|list></gray> — manage NPCs");
         }

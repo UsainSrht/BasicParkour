@@ -270,9 +270,15 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         ParkourSessionImpl session = sessions.get(player.getUniqueId());
         if (session == null) return false;
 
-        // Must be the next expected checkpoint
-        int expected = session.getCurrentCheckpointIndex() + 1;
-        if (checkpoint.getIndex() != expected) return false;
+        int currentIdx = session.getCurrentCheckpointIndex();
+        int targetIdx = checkpoint.getIndex();
+        if (targetIdx <= currentIdx) return false;
+
+        boolean isGenerated = session.getCourse() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse;
+        if (!isGenerated && targetIdx != currentIdx + 1) {
+            // Standard courses require sequential checkpoint completion
+            return false;
+        }
 
         // Take snapshot before advancing
         var snapshot = session.getTimerSnapshot();
@@ -282,20 +288,52 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) return false;
 
-        // Advance
-        session.advanceCheckpoint();
+        // Advance to target checkpoint (handling skips)
+        int gained = targetIdx - currentIdx;
+        while (session.getCurrentCheckpointIndex() < targetIdx) {
+            session.advanceCheckpoint();
+        }
 
-        // Notify player via YamlMessage for standard courses
-        // Endless courses display continuous live block count via timer-display-endless
         boolean isEndless = session.getCourse() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse gpc
                 && gpc.getTemplate().lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE;
-        if (!isEndless) {
+
+        if (isEndless) {
+            playBlockCountSound(player);
+            sendBlockCountMessage(player, targetIdx, gained);
+            if (plugin.getGeneratorManager() != null) {
+                plugin.getGeneratorManager().notifyPlayerProgress(player, targetIdx);
+            }
+        } else {
             messages.send(messages.getCheckpointReach(), player,
                 Placeholder.parsed("checkpoint", String.valueOf(checkpoint.getIndex() + 1)),
                 Placeholder.parsed("time", snapshot.formatted()));
         }
 
         return true;
+    }
+
+    private void playBlockCountSound(@NotNull Player player) {
+        if (!plugin.getConfig().getBoolean("generator.block-sound.enabled", true)) return;
+        String soundKey = plugin.getConfig().getString("generator.block-sound.sound", "entity.experience_orb.pickup");
+        float volume = (float) plugin.getConfig().getDouble("generator.block-sound.volume", 0.6);
+        float pitch = (float) plugin.getConfig().getDouble("generator.block-sound.pitch", 1.2);
+        try {
+            org.bukkit.Sound enumSound = org.bukkit.Sound.valueOf(soundKey.toUpperCase().replace('.', '_'));
+            player.playSound(player.getLocation(), enumSound, org.bukkit.SoundCategory.PLAYERS, volume, pitch);
+        } catch (IllegalArgumentException ex) {
+            player.playSound(player.getLocation(), soundKey.toLowerCase(), org.bukkit.SoundCategory.PLAYERS, volume, pitch);
+        }
+    }
+
+    private void sendBlockCountMessage(@NotNull Player player, int totalBlocks, int gained) {
+        String msg = plugin.getConfig().getString("generator.block-message", "");
+        if (msg == null || msg.isBlank()) return;
+        net.kyori.adventure.text.Component comp = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+            .deserialize(msg,
+                Placeholder.parsed("blocks", String.valueOf(totalBlocks)),
+                Placeholder.parsed("score", String.valueOf(totalBlocks)),
+                Placeholder.parsed("gained", String.valueOf(gained)));
+        player.sendMessage(comp);
     }
 
     // -----------------------------------------------------------------------
@@ -345,10 +383,21 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                 });
         }
 
-        // Teleport on completion if configured (e.g. JOIN_LOCATION or START_LOCATION)
+        // Teleport on completion if configured (e.g. custom completeLocation, JOIN_LOCATION, or START_LOCATION)
+        Location compLoc = resolveCompleteLocation(session);
         String tpOnComplete = plugin.getConfig().getString("session.teleport-on-complete", "NONE").toUpperCase(java.util.Locale.ROOT);
-        if (tpOnComplete.equals("JOIN_LOCATION")) {
+        if (compLoc != null) {
+            if (plugin.getGeneratorEntryListener() != null) {
+                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+            }
+            markInternalTeleport(player.getUniqueId());
+            scheduler.runOnEntity(player, () ->
+                player.teleportAsync(compLoc).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
+        } else if (tpOnComplete.equals("JOIN_LOCATION")) {
             Location joinLoc = session.getJoinLocation();
+            if (plugin.getGeneratorEntryListener() != null) {
+                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+            }
             markInternalTeleport(player.getUniqueId());
             scheduler.runOnEntity(player, () ->
                 player.teleportAsync(joinLoc).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
@@ -449,39 +498,45 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         } else if (onFail.equals("JOIN_LOCATION")) {
             dieMode = me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE;
         }
+
         if (session.getCourse() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse gpc
                 && gpc.getTemplate().lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE) {
-            dieMode = me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE;
-            int blocks = session.getCurrentCheckpointIndex();
-            long elapsed = session.getElapsedMillis();
-            String leaderboardCourseId = gpc.getTemplate().leaderboardCourseId();
-            if (blocks > 0) {
-                PlayerRecord record = PlayerRecord.of(
-                    player.getUniqueId(), player.getName(), leaderboardCourseId, elapsed, blocks
-                );
-                plugin.getRepository().saveRecord(record).thenAccept(isNewBest -> {
-                    if (isNewBest) {
-                        scheduler.runOnEntity(player, () -> {
-                            messages.send(messages.getPersonalBestEndless(), player,
-                                Placeholder.parsed("blocks", String.valueOf(blocks)),
-                                Placeholder.parsed("time", TimerFormatter.format(elapsed)));
-                        });
-                    }
-                    if (plugin.getHologramManager() != null) {
-                        plugin.getHologramManager().refreshCourseHolograms(leaderboardCourseId);
-                    }
-                    if (plugin.getNpcManager() != null) {
-                        plugin.getNpcManager().updateTopHolders(leaderboardCourseId);
-                    }
-                });
+            // When endless run ends permanently on FAIL_DIE, record their personal best
+            if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE) {
+                int blocks = session.getCurrentCheckpointIndex();
+                long elapsed = session.getElapsedMillis();
+                String leaderboardCourseId = gpc.getTemplate().leaderboardCourseId();
+                if (blocks > 0) {
+                    PlayerRecord record = PlayerRecord.of(
+                        player.getUniqueId(), player.getName(), leaderboardCourseId, elapsed, blocks
+                    );
+                    plugin.getRepository().saveRecord(record).thenAccept(isNewBest -> {
+                        if (isNewBest) {
+                            scheduler.runOnEntity(player, () -> {
+                                messages.send(messages.getPersonalBestEndless(), player,
+                                    Placeholder.parsed("blocks", String.valueOf(blocks)),
+                                    Placeholder.parsed("time", TimerFormatter.format(elapsed)));
+                            });
+                        }
+                        if (plugin.getHologramManager() != null) {
+                            plugin.getHologramManager().refreshCourseHolograms(leaderboardCourseId);
+                        }
+                        if (plugin.getNpcManager() != null) {
+                            plugin.getNpcManager().updateTopHolders(leaderboardCourseId);
+                        }
+                    });
+                }
             }
         }
         final me.usainsrht.basicparkour.api.course.DieMode finalDieMode = dieMode;
 
         Location respawnLoc;
         if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE) {
-            respawnLoc = session.getJoinLocation();
+            respawnLoc = resolveFailLocation(session);
             restorePlayerState(player);
+            if (plugin.getGeneratorEntryListener() != null) {
+                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+            }
         } else {
             // Determine respawn location: last checkpoint or start center
             respawnLoc = session.getLastCheckpoint()
@@ -600,16 +655,52 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                 });
             }
         }
-        Location joinLoc = session.getJoinLocation();
+        Location exitLoc = resolveFailLocation(session);
         boolean isGen = session.getCourse() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse;
         removeSession(player);
         messages.send(messages.getSessionLeave(), player);
 
+        if (plugin.getGeneratorEntryListener() != null) {
+            plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+        }
+
         if (isGen || plugin.getConfig().getBoolean("session.teleport-on-leave", true)) {
             markInternalTeleport(player.getUniqueId());
             scheduler.runOnEntity(player, () ->
-                player.teleportAsync(joinLoc).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
+                player.teleportAsync(exitLoc).thenRun(() -> clearInternalTeleport(player.getUniqueId())));
         }
+    }
+
+    /**
+     * Resolves the location to teleport a player when failing or leaving a session.
+     * Checks course/template fail-location, global session.fail-location/exit-location,
+     * and falls back to session.joinLocation.
+     */
+    public @NotNull Location resolveFailLocation(@NotNull ParkourSessionImpl session) {
+        if (session.getCourse().getFailLocation().isPresent()) {
+            return session.getCourse().getFailLocation().get();
+        }
+        Location globalFail = me.usainsrht.basicparkour.core.util.LocationParser.parse(plugin.getConfig().get("session.fail-location"));
+        if (globalFail != null) return globalFail;
+        Location globalExit = me.usainsrht.basicparkour.core.util.LocationParser.parse(plugin.getConfig().get("session.exit-location"));
+        if (globalExit != null) return globalExit;
+        return session.getJoinLocation();
+    }
+
+    /**
+     * Resolves the location to teleport a player when completing a course.
+     * Checks course/template complete-location, global session.complete-location/exit-location,
+     * or returns null if not configured (allowing standard teleport-on-complete handling).
+     */
+    public @Nullable Location resolveCompleteLocation(@NotNull ParkourSessionImpl session) {
+        if (session.getCourse().getCompleteLocation().isPresent()) {
+            return session.getCourse().getCompleteLocation().get();
+        }
+        Location globalComplete = me.usainsrht.basicparkour.core.util.LocationParser.parse(plugin.getConfig().get("session.complete-location"));
+        if (globalComplete != null) return globalComplete;
+        Location globalExit = me.usainsrht.basicparkour.core.util.LocationParser.parse(plugin.getConfig().get("session.exit-location"));
+        if (globalExit != null) return globalExit;
+        return null;
     }
 
     /**

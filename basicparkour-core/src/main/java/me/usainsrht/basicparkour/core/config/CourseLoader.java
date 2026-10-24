@@ -211,10 +211,18 @@ public final class CourseLoader {
             ? cfg.getLong("time-limit-seconds") * 1000L
             : -1L;
 
+        // Fail / Complete locations
+        Location failLoc = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("fail-location"));
+        if (failLoc == null) {
+            failLoc = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("exit-location"));
+        }
+        Location completeLoc = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("complete-location"));
+
         return new ParkourCourseImpl(id, displayName, worldName,
             startRegion, endRegion, startLocations, portalRegion, portalTeleport,
             blockList, blockListMode, minY, dieMode,
-            checkpoints, modifiers, rewards, timeLimitMs);
+            checkpoints, modifiers, rewards, timeLimitMs,
+            failLoc, completeLoc);
     }
 
     @Nullable

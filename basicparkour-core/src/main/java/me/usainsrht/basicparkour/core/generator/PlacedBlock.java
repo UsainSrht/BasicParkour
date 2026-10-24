@@ -19,12 +19,18 @@ import org.jetbrains.annotations.NotNull;
  * @param desiredMaterial The material the generator wants to place here.
  * @param platformIndex   Zero-based index of the platform this block belongs to.
  *                        Used by the sliding window to determine which platforms are "behind" the player.
+ * @param placedAtMillis  Timestamp in milliseconds when this block was staged/placed.
  */
 public record PlacedBlock(
     @NotNull Location location,
     @NotNull Material desiredMaterial,
-    int platformIndex
+    int platformIndex,
+    long placedAtMillis
 ) {
+    public PlacedBlock(@NotNull Location location, @NotNull Material desiredMaterial, int platformIndex) {
+        this(location, desiredMaterial, platformIndex, System.currentTimeMillis());
+    }
+
     /** Creates a snapshot — location is defensively cloned so mutations don't affect us. */
     public PlacedBlock {
         location = location.clone();

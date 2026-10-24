@@ -315,8 +315,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
         return future;
     }
 
-    public void reloadPlugin() {
-        reloadPluginAsync().join();
+    @NotNull
+    public java.util.concurrent.CompletableFuture<Void> reloadPlugin() {
+        return reloadPluginAsync();
     }
 
     // -----------------------------------------------------------------------

@@ -26,6 +26,11 @@ fixed-length: 30
 
 block-mode: SLIDING_WINDOW
 sliding-window-ahead: 15
+sliding-window-mode: DUAL
+sliding-window-time-seconds: 12.0
+
+appear-animation: GROW
+die-mode: FAIL_DIE
 
 cleanup-delay-seconds: 30
 

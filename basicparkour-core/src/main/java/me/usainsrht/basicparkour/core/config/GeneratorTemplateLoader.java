@@ -1,7 +1,9 @@
 package me.usainsrht.basicparkour.core.config;
 
+import me.usainsrht.basicparkour.api.course.DieMode;
 import me.usainsrht.basicparkour.api.generator.*;
 import me.usainsrht.basicparkour.core.BasicParkourPlugin;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -72,10 +74,9 @@ public final class GeneratorTemplateLoader {
         return result;
     }
 
-    // ── Private: parse a single file ──────────────────────────────────────
-
+    // ── Parse a single file ────────────────────────────────────────────────
     @Nullable
-    private GeneratorTemplate load(@NotNull File file) {
+    public GeneratorTemplate load(@NotNull File file) {
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
 
         // ── Required fields ────────────────────────────────────────────────
@@ -147,6 +148,15 @@ public final class GeneratorTemplateLoader {
         String leaderboardId = cfg.getString("leaderboard-course-id",
             plugin.getConfig().getString("generator.leaderboard-id", "__generated__"));
 
+        Float fixedYaw = null;
+        if (cfg.contains("walk-in-yaw")) {
+            fixedYaw = (float) cfg.getDouble("walk-in-yaw");
+        } else if (cfg.contains("fixed-yaw")) {
+            fixedYaw = (float) cfg.getDouble("fixed-yaw");
+        } else if (cfg.contains("yaw")) {
+            fixedYaw = (float) cfg.getDouble("yaw");
+        }
+
         // ── Platform shapes ────────────────────────────────────────────────
         List<String> platformShapes = new ArrayList<>();
         if (cfg.isList("platform-shapes")) {
@@ -184,18 +194,62 @@ public final class GeneratorTemplateLoader {
                     warn(file, "Unknown material in modifiers: " + blockName);
                     continue;
                 }
-                modifiers.put(mat, "basicparkour:" + type.toLowerCase(Locale.ROOT));
             }
         }
+
+        // ── Endless / session options ─────────────────────────────────────────
+        me.usainsrht.basicparkour.api.course.DieMode dieMode;
+        if (cfg.contains("die-mode")) {
+            String raw = cfg.getString("die-mode", "FAIL_DIE").trim().toUpperCase(Locale.ROOT);
+            if (raw.equals("FAIL") || raw.equals("FAIL_DIE")) {
+                dieMode = DieMode.FAIL_DIE;
+            } else if (raw.equals("RESTART") || raw.equals("RESTART_DIE") || raw.equals("CHECKPOINT")) {
+                dieMode = DieMode.RESTART_DIE;
+            } else {
+                dieMode = lengthType == LengthType.INFINITE ? DieMode.FAIL_DIE : DieMode.RESTART_DIE;
+            }
+        } else {
+            dieMode = lengthType == LengthType.INFINITE ? DieMode.FAIL_DIE : DieMode.RESTART_DIE;
+        }
+
+        BlockAppearAnimation appearAnimation;
+        String animRaw = cfg.getString("appear-animation", cfg.getString("animation", "DEFAULT")).trim().toUpperCase(Locale.ROOT);
+        try {
+            appearAnimation = BlockAppearAnimation.valueOf(animRaw);
+        } catch (IllegalArgumentException ex) {
+            warn(file, "Unknown appear-animation: " + animRaw);
+            appearAnimation = BlockAppearAnimation.DEFAULT;
+        }
+
+        double slidingWindowTime = cfg.getDouble("sliding-window-time-seconds", cfg.getDouble("sliding-window-time", 0.0));
+        SlidingWindowMode slidingMode;
+        if (cfg.contains("sliding-window-mode")) {
+            try {
+                slidingMode = SlidingWindowMode.valueOf(cfg.getString("sliding-window-mode").trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                warn(file, "Unknown sliding-window-mode: " + cfg.getString("sliding-window-mode"));
+                slidingMode = slidingWindowTime > 0 ? SlidingWindowMode.DUAL : SlidingWindowMode.BLOCKS;
+            }
+        } else {
+            slidingMode = slidingWindowTime > 0 ? SlidingWindowMode.DUAL : SlidingWindowMode.BLOCKS;
+        }
+
+        Location failLocation = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("fail-location"));
+        if (failLocation == null) {
+            failLocation = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("exit-location"));
+        }
+        Location completeLocation = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("complete-location"));
 
         return new GeneratorTemplate(
             id, displayName, difficulty, theme, lengthType, fixedLength,
             blockMode, slidingWindowAhead, cleanupDelay,
             entryMode, dedicatedWorld, dedicatedRadius, shared, seed,
-            leaderboardId, platformShapes,
+            leaderboardId, fixedYaw, platformShapes,
             minGap, maxGap, minHeightDelta, maxHeightDelta,
             platMinSize, platMaxSize, obstChance, modChance,
-            modifiers
+            modifiers,
+            dieMode, appearAnimation, slidingMode, slidingWindowTime,
+            failLocation, completeLocation
         );
     }
 
