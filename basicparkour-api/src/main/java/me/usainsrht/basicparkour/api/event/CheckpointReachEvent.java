@@ -16,12 +16,11 @@ import org.jetbrains.annotations.NotNull;
  * The player's respawn location will NOT be updated and the checkpoint
  * will be eligible to fire again on the next movement.</p>
  */
-public class CheckpointReachEvent extends Event implements Cancellable {
+public class CheckpointReachEvent extends PlayerParkourEvent implements Cancellable {
 
     private static final HandlerList HANDLERS = new HandlerList();
     private boolean cancelled;
 
-    private final Player player;
     private final ParkourSession session;
     private final Checkpoint checkpoint;
     private final TimerSnapshot timerAtReach;
@@ -30,8 +29,7 @@ public class CheckpointReachEvent extends Event implements Cancellable {
                                  @NotNull ParkourSession session,
                                  @NotNull Checkpoint checkpoint,
                                  @NotNull TimerSnapshot timerAtReach) {
-        super(false);
-        this.player = player;
+        super(player);
         this.session = session;
         this.checkpoint = checkpoint;
         this.timerAtReach = timerAtReach;

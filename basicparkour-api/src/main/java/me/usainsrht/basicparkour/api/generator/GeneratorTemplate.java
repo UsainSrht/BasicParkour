@@ -433,4 +433,265 @@ public record GeneratorTemplate(
     public int resolvedMaxHeightDeviation() {
         return Math.max(0, maxHeightDeviation);
     }
+
+    /**
+     * Creates a new fluent builder for defining a {@link GeneratorTemplate} programmatically.
+     *
+     * @param id the unique template ID
+     * @return a new Builder
+     */
+    @NotNull
+    public static Builder builder(@NotNull String id) {
+        return new Builder(id);
+    }
+
+    /**
+     * Fluent builder for {@link GeneratorTemplate}.
+     */
+    public static final class Builder {
+        private final String id;
+        private String displayName;
+        private GeneratorDifficulty difficulty = GeneratorDifficulty.MEDIUM;
+        private GeneratorTheme theme = new GeneratorTheme("default", List.of(Material.STONE), List.of(), List.of());
+        private LengthType lengthType = LengthType.INFINITE;
+        private int fixedLength = 50;
+        private BlockMode blockMode = BlockMode.SLIDING_WINDOW;
+        private int slidingWindowAhead = 5;
+        private int cleanupDelaySeconds = 10;
+        private EntryMode entryMode = EntryMode.DEDICATED_WORLD;
+        private String dedicatedWorldName = "parkour_generator";
+        private int dedicatedWorldRadius = 2000;
+        private boolean shared = false;
+        private Long seed = null;
+        private String leaderboardCourseId;
+        private Float fixedYaw = null;
+        private List<String> platformShapes = List.of("1x1");
+        private int minGap = -1;
+        private int maxGap = -1;
+        private int minHeightDelta = Integer.MIN_VALUE;
+        private int maxHeightDelta = Integer.MAX_VALUE;
+        private int platformMinSize = -1;
+        private int platformMaxSize = -1;
+        private double obstacleChance = -1.0;
+        private double modifierChance = -1.0;
+        private Map<Material, String> modifierOverrides = Map.of();
+        private DieMode dieMode = DieMode.FAIL_DIE;
+        private BlockAppearAnimation appearAnimation = BlockAppearAnimation.DEFAULT;
+        private SlidingWindowMode slidingWindowMode = SlidingWindowMode.BLOCKS;
+        private double slidingWindowTimeSeconds = 0.0;
+        private Location failLocation = null;
+        private Location completeLocation = null;
+        private double directionCone = 90.0;
+        private Float directionYaw = null;
+        private int corridorWidth = 0;
+        private int maxHeightDeviation = 15;
+        private Boolean preventDamage = null;
+        private Boolean fallDamageFailsSession = null;
+
+        public Builder(@NotNull String id) {
+            this.id = java.util.Objects.requireNonNull(id, "id cannot be null");
+            this.displayName = id;
+            this.leaderboardCourseId = id;
+        }
+
+        public Builder displayName(@NotNull String displayName) {
+            this.displayName = displayName;
+            return this;
+        }
+
+        public Builder difficulty(@NotNull GeneratorDifficulty difficulty) {
+            this.difficulty = difficulty;
+            return this;
+        }
+
+        public Builder theme(@NotNull GeneratorTheme theme) {
+            this.theme = theme;
+            return this;
+        }
+
+        public Builder lengthType(@NotNull LengthType lengthType) {
+            this.lengthType = lengthType;
+            return this;
+        }
+
+        public Builder fixedLength(int fixedLength) {
+            this.fixedLength = fixedLength;
+            return this;
+        }
+
+        public Builder blockMode(@NotNull BlockMode blockMode) {
+            this.blockMode = blockMode;
+            return this;
+        }
+
+        public Builder slidingWindowAhead(int slidingWindowAhead) {
+            this.slidingWindowAhead = slidingWindowAhead;
+            return this;
+        }
+
+        public Builder cleanupDelaySeconds(int cleanupDelaySeconds) {
+            this.cleanupDelaySeconds = cleanupDelaySeconds;
+            return this;
+        }
+
+        public Builder entryMode(@NotNull EntryMode entryMode) {
+            this.entryMode = entryMode;
+            return this;
+        }
+
+        public Builder dedicatedWorldName(@Nullable String dedicatedWorldName) {
+            this.dedicatedWorldName = dedicatedWorldName;
+            return this;
+        }
+
+        public Builder dedicatedWorldRadius(int dedicatedWorldRadius) {
+            this.dedicatedWorldRadius = dedicatedWorldRadius;
+            return this;
+        }
+
+        public Builder shared(boolean shared) {
+            this.shared = shared;
+            return this;
+        }
+
+        public Builder seed(@Nullable Long seed) {
+            this.seed = seed;
+            return this;
+        }
+
+        public Builder leaderboardCourseId(@NotNull String leaderboardCourseId) {
+            this.leaderboardCourseId = leaderboardCourseId;
+            return this;
+        }
+
+        public Builder fixedYaw(@Nullable Float fixedYaw) {
+            this.fixedYaw = fixedYaw;
+            return this;
+        }
+
+        public Builder platformShapes(@NotNull List<String> shapes) {
+            this.platformShapes = shapes;
+            return this;
+        }
+
+        public Builder minGap(int minGap) {
+            this.minGap = minGap;
+            return this;
+        }
+
+        public Builder maxGap(int maxGap) {
+            this.maxGap = maxGap;
+            return this;
+        }
+
+        public Builder minHeightDelta(int minHeightDelta) {
+            this.minHeightDelta = minHeightDelta;
+            return this;
+        }
+
+        public Builder maxHeightDelta(int maxHeightDelta) {
+            this.maxHeightDelta = maxHeightDelta;
+            return this;
+        }
+
+        public Builder platformMinSize(int platformMinSize) {
+            this.platformMinSize = platformMinSize;
+            return this;
+        }
+
+        public Builder platformMaxSize(int platformMaxSize) {
+            this.platformMaxSize = platformMaxSize;
+            return this;
+        }
+
+        public Builder obstacleChance(double obstacleChance) {
+            this.obstacleChance = obstacleChance;
+            return this;
+        }
+
+        public Builder modifierChance(double modifierChance) {
+            this.modifierChance = modifierChance;
+            return this;
+        }
+
+        public Builder modifierOverrides(@NotNull Map<Material, String> modifierOverrides) {
+            this.modifierOverrides = modifierOverrides;
+            return this;
+        }
+
+        public Builder dieMode(@NotNull DieMode dieMode) {
+            this.dieMode = dieMode;
+            return this;
+        }
+
+        public Builder appearAnimation(@NotNull BlockAppearAnimation appearAnimation) {
+            this.appearAnimation = appearAnimation;
+            return this;
+        }
+
+        public Builder slidingWindowMode(@NotNull SlidingWindowMode slidingWindowMode) {
+            this.slidingWindowMode = slidingWindowMode;
+            return this;
+        }
+
+        public Builder slidingWindowTimeSeconds(double slidingWindowTimeSeconds) {
+            this.slidingWindowTimeSeconds = slidingWindowTimeSeconds;
+            return this;
+        }
+
+        public Builder failLocation(@Nullable Location failLocation) {
+            this.failLocation = failLocation;
+            return this;
+        }
+
+        public Builder completeLocation(@Nullable Location completeLocation) {
+            this.completeLocation = completeLocation;
+            return this;
+        }
+
+        public Builder directionCone(double directionCone) {
+            this.directionCone = directionCone;
+            return this;
+        }
+
+        public Builder directionYaw(@Nullable Float directionYaw) {
+            this.directionYaw = directionYaw;
+            return this;
+        }
+
+        public Builder corridorWidth(int corridorWidth) {
+            this.corridorWidth = corridorWidth;
+            return this;
+        }
+
+        public Builder maxHeightDeviation(int maxHeightDeviation) {
+            this.maxHeightDeviation = maxHeightDeviation;
+            return this;
+        }
+
+        public Builder preventDamage(@Nullable Boolean preventDamage) {
+            this.preventDamage = preventDamage;
+            return this;
+        }
+
+        public Builder fallDamageFailsSession(@Nullable Boolean fallDamageFailsSession) {
+            this.fallDamageFailsSession = fallDamageFailsSession;
+            return this;
+        }
+
+        @NotNull
+        public GeneratorTemplate build() {
+            return new GeneratorTemplate(
+                id, displayName, difficulty, theme, lengthType, fixedLength,
+                blockMode, slidingWindowAhead, cleanupDelaySeconds, entryMode,
+                dedicatedWorldName, dedicatedWorldRadius, shared, seed, leaderboardCourseId,
+                fixedYaw, platformShapes, minGap, maxGap, minHeightDelta, maxHeightDelta,
+                platformMinSize, platformMaxSize, obstacleChance, modifierChance,
+                modifierOverrides, dieMode, appearAnimation, slidingWindowMode,
+                slidingWindowTimeSeconds, failLocation, completeLocation,
+                directionCone, directionYaw, corridorWidth, maxHeightDeviation,
+                preventDamage, fallDamageFailsSession
+            );
+        }
+    }
 }

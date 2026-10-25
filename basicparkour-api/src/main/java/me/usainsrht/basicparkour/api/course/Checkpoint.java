@@ -37,4 +37,40 @@ public interface Checkpoint {
      */
     @NotNull
     CourseRegion getTriggerRegion();
+
+    /**
+     * Creates a new Checkpoint instance.
+     *
+     * @param index         zero-based index
+     * @param spawnLocation spawn location on respawn
+     * @param triggerRegion trigger region bounding box
+     * @return a new Checkpoint
+     */
+    @NotNull
+    static Checkpoint of(int index, @NotNull Location spawnLocation, @NotNull CourseRegion triggerRegion) {
+        Location spawn = spawnLocation.clone();
+        return new Checkpoint() {
+            @Override
+            public int getIndex() {
+                return index;
+            }
+
+            @Override
+            @NotNull
+            public Location getSpawnLocation() {
+                return spawn.clone();
+            }
+
+            @Override
+            @NotNull
+            public CourseRegion getTriggerRegion() {
+                return triggerRegion;
+            }
+
+            @Override
+            public String toString() {
+                return "Checkpoint{index=" + index + ", spawn=" + spawn + "}";
+            }
+        };
+    }
 }

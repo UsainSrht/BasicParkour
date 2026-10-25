@@ -23,16 +23,19 @@ public final class BasicParkourAPIImpl extends BasicParkourAPI {
     private final SessionManager sessionManager;
     private final ModifierRegistryImpl modifierRegistry;
     private final ParkourRepository repository;
+    private final me.usainsrht.basicparkour.api.ghost.GhostRecorder ghostRecorder;
     private GeneratorManagerImpl generatorManager;
 
     public BasicParkourAPIImpl(
         @NotNull SessionManager sessionManager,
         @NotNull ModifierRegistryImpl modifierRegistry,
-        @NotNull ParkourRepository repository
+        @NotNull ParkourRepository repository,
+        @NotNull me.usainsrht.basicparkour.api.ghost.GhostRecorder ghostRecorder
     ) {
         this.sessionManager = sessionManager;
         this.modifierRegistry = modifierRegistry;
         this.repository = repository;
+        this.ghostRecorder = ghostRecorder;
         this.courseRegistry = new CourseRegistryImpl(sessionManager);
     }
 
@@ -40,6 +43,7 @@ public final class BasicParkourAPIImpl extends BasicParkourAPI {
     @Override @NotNull public SessionManager getSessionManager() { return sessionManager; }
     @Override @NotNull public ModifierRegistry getModifierRegistry() { return modifierRegistry; }
     @Override @NotNull public ParkourRepository getRepository() { return repository; }
+    @Override @NotNull public me.usainsrht.basicparkour.api.ghost.GhostRecorder getGhostRecorder() { return ghostRecorder; }
     @Override @NotNull public GeneratorManager getGeneratorManager() {
         if (generatorManager == null)
             throw new IllegalStateException("GeneratorManager not yet initialised.");

@@ -5,9 +5,14 @@ import me.usainsrht.basicparkour.api.course.Checkpoint;
 import me.usainsrht.basicparkour.api.course.ParkourCourse;
 import me.usainsrht.basicparkour.api.event.CourseCompleteEvent;
 import me.usainsrht.basicparkour.api.event.SessionFailEvent;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -91,12 +96,24 @@ public interface ParkourSession {
 
     /**
      * Calculates the elapsed time since this session started.
-     * Uses {@link System#currentTimeMillis()} for millisecond accuracy.
+     * Takes into account paused time and time penalties.
      *
      * @return elapsed time in milliseconds
      */
     default long getElapsedMillis() {
-        return System.currentTimeMillis() - getStartTime();
+        if (getState() == SessionState.PAUSED) {
+            return Math.max(0, getPausedElapsedMillis() + getTimePenalty());
+        }
+        return Math.max(0, (System.currentTimeMillis() - getStartTime() - getPausedDurationMillis()) + getTimePenalty());
+    }
+
+    /**
+     * Returns the elapsed milliseconds recorded at the moment this session was paused.
+     *
+     * @return paused elapsed milliseconds
+     */
+    default long getPausedElapsedMillis() {
+        return 0L;
     }
 
     /**
@@ -124,6 +141,225 @@ public interface ParkourSession {
      * <p>Must be called from a thread-safe context for the player's entity region.</p>
      */
     void complete();
+
+    // ── Session Controls ─────────────────────────────────────────────────────
+
+    /**
+     * Restarts this session from the beginning.
+     */
+    default void restart() {}
+
+    /**
+     * Leaves this session cleanly and teleports the player back to where they started.
+     */
+    default void leave() {
+        leave(true);
+    }
+
+    /**
+     * Leaves this session cleanly, with configurable teleportation.
+     *
+     * @param teleport true to teleport the player to their exit/join location
+     */
+    default void leave(boolean teleport) {}
+
+    /**
+     * Teleports the player back to their last checkpoint (or start location).
+     */
+    default void teleportToCheckpoint() {}
+
+    /**
+     * Pauses this parkour session. While paused, the elapsed timer is frozen,
+     * checkpoint triggers and modifiers are bypassed.
+     *
+     * @return true if successfully paused, false if already paused or not active
+     */
+    default boolean pause() {
+        return false;
+    }
+
+    /**
+     * Resumes a paused session.
+     *
+     * @return true if successfully resumed, false if not paused
+     */
+    default boolean resume() {
+        return false;
+    }
+
+    /**
+     * Returns whether this session is currently paused.
+     *
+     * @return true if paused
+     */
+    default boolean isPaused() {
+        return getState() == SessionState.PAUSED;
+    }
+
+    /**
+     * Returns the total duration (in milliseconds) this session has spent paused.
+     *
+     * @return paused duration in ms
+     */
+    default long getPausedDurationMillis() {
+        return 0L;
+    }
+
+    // ── Checkpoint & Timer Modification ──────────────────────────────────────
+
+    /**
+     * Explicitly sets the current checkpoint index for this session.
+     *
+     * @param checkpointIndex the new checkpoint index (-1 for start)
+     */
+    default void setCurrentCheckpointIndex(int checkpointIndex) {}
+
+    /**
+     * Advances the checkpoint index by one.
+     *
+     * @return the new checkpoint index, or -1 if not active
+     */
+    default int advanceCheckpoint() {
+        return -1;
+    }
+
+    /**
+     * Adds or subtracts time (in milliseconds) from this session's elapsed time.
+     * Positive millis adds a time penalty (increases elapsed time).
+     * Negative millis gives a time bonus (decreases elapsed time).
+     *
+     * @param penaltyMillis amount of milliseconds to add as a penalty
+     */
+    default void addTimePenalty(long penaltyMillis) {}
+
+    /**
+     * Returns the total penalty time in milliseconds applied to this session.
+     *
+     * @return time penalty in ms
+     */
+    default long getTimePenalty() {
+        return 0L;
+    }
+
+    /**
+     * Updates the start timestamp of this session.
+     *
+     * @param newStartTime the new start timestamp in milliseconds
+     */
+    default void setStartTime(long newStartTime) {}
+
+    // ── Location Overrides ───────────────────────────────────────────────────
+
+    /**
+     * Sets or updates the location where the player will be teleported if returned to join location.
+     *
+     * @param location the new join location
+     */
+    default void setJoinLocation(@NotNull org.bukkit.Location location) {}
+
+    /**
+     * Gets custom fail location override for this session if configured.
+     *
+     * @return optional custom fail location
+     */
+    @NotNull
+    default Optional<Location> getCustomFailLocation() {
+        return Optional.empty();
+    }
+
+    /**
+     * Sets a custom fail location override for this session.
+     *
+     * @param location custom fail location, or null to clear
+     */
+    default void setCustomFailLocation(@Nullable Location location) {}
+
+    /**
+     * Gets custom complete location override for this session if configured.
+     *
+     * @return optional custom complete location
+     */
+    @NotNull
+    default Optional<Location> getCustomCompleteLocation() {
+        return Optional.empty();
+    }
+
+    /**
+     * Sets a custom complete location override for this session.
+     *
+     * @param location custom complete location, or null to clear
+     */
+    default void setCustomCompleteLocation(@Nullable Location location) {}
+
+    // ── Metadata Store ───────────────────────────────────────────────────────
+
+    /**
+     * Sets a metadata value on this session.
+     *
+     * @param key   metadata key
+     * @param value metadata value (null removes key)
+     */
+    default void setMetadata(@NotNull String key, @Nullable Object value) {}
+
+    /**
+     * Retrieves a metadata value from this session.
+     *
+     * @param key metadata key
+     * @return metadata value or null if not found
+     */
+    @Nullable
+    default Object getMetadata(@NotNull String key) {
+        return null;
+    }
+
+    /**
+     * Retrieves a typed metadata value from this session.
+     *
+     * @param key  metadata key
+     * @param type expected value class
+     * @param <T>  value type
+     * @return optional typed value
+     */
+    @NotNull
+    default <T> Optional<T> getMetadata(@NotNull String key, @NotNull Class<T> type) {
+        Object val = getMetadata(key);
+        if (val != null && type.isInstance(val)) {
+            return Optional.of(type.cast(val));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Checks if this session has a metadata value for the given key.
+     *
+     * @param key metadata key
+     * @return true if key exists
+     */
+    default boolean hasMetadata(@NotNull String key) {
+        return getMetadata(key) != null;
+    }
+
+    /**
+     * Removes and returns a metadata value from this session.
+     *
+     * @param key metadata key
+     * @return removed value or null
+     */
+    @Nullable
+    default Object removeMetadata(@NotNull String key) {
+        return null;
+    }
+
+    /**
+     * Returns an unmodifiable map of all metadata stored on this session.
+     *
+     * @return unmodifiable metadata map
+     */
+    @NotNull
+    @Unmodifiable
+    default Map<String, Object> getMetadataMap() {
+        return Collections.emptyMap();
+    }
 
     /**
      * Reasons a session can be failed.

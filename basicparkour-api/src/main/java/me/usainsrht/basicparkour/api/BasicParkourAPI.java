@@ -46,6 +46,25 @@ public abstract class BasicParkourAPI {
     }
 
     /**
+     * Checks if the BasicParkourAPI singleton has been registered and is available.
+     *
+     * @return true if the API is ready for use
+     */
+    public static boolean isAvailable() {
+        return instance != null;
+    }
+
+    /**
+     * Safely returns the registered singleton instance if available, or empty if not initialised yet.
+     *
+     * @return optional API instance
+     */
+    @NotNull
+    public static Optional<BasicParkourAPI> getOptional() {
+        return Optional.ofNullable(instance);
+    }
+
+    /**
      * Registers the API singleton. Called exclusively by the Basic Parkour core plugin.
      *
      * @param api the implementation instance
@@ -108,6 +127,14 @@ public abstract class BasicParkourAPI {
      */
     @NotNull
     public abstract GeneratorManager getGeneratorManager();
+
+    /**
+     * Returns the ghost recorder, which manages recording and replaying player ghost runs.
+     *
+     * @return the ghost recorder
+     */
+    @NotNull
+    public abstract me.usainsrht.basicparkour.api.ghost.GhostRecorder getGhostRecorder();
 
     // -------------------------------------------------------------------------
     // Nested interface: CourseRegistry
@@ -173,6 +200,19 @@ public abstract class BasicParkourAPI {
         ParkourSession startSession(@NotNull Player player, @NotNull ParkourCourse course);
 
         /**
+         * Starts a new parkour session with configurable initial teleportation.
+         *
+         * @param player         the player
+         * @param course         the course to run
+         * @param shouldTeleport whether to teleport the player to the course start location
+         * @return the created session, or null if cancelled
+         */
+        @Nullable
+        default ParkourSession startSession(@NotNull Player player, @NotNull ParkourCourse course, boolean shouldTeleport) {
+            return startSession(player, course);
+        }
+
+        /**
          * Returns the active session for the given player, or {@link Optional#empty()}.
          *
          * @param player the player
@@ -188,5 +228,96 @@ public abstract class BasicParkourAPI {
          */
         @NotNull
         Collection<ParkourSession> getActiveSessions();
+
+        /**
+         * Returns whether the given player is currently running a parkour course.
+         *
+         * @param player the player
+         * @return true if player has an active session
+         */
+        default boolean isPlayerInSession(@NotNull Player player) {
+            return getSession(player).isPresent();
+        }
+
+        /**
+         * Restarts the player's active parkour session from the beginning.
+         *
+         * @param player the player
+         */
+        default void restartSession(@NotNull Player player) {}
+
+        /**
+         * Leaves the player's active parkour session cleanly and teleports them to their exit/join location.
+         *
+         * @param player the player
+         */
+        default void leaveSession(@NotNull Player player) {
+            leaveSession(player, true);
+        }
+
+        /**
+         * Leaves the player's active parkour session cleanly with configurable teleportation.
+         *
+         * @param player   the player
+         * @param teleport true to teleport back to exit/join location
+         */
+        default void leaveSession(@NotNull Player player, boolean teleport) {}
+
+        /**
+         * Teleports the player back to their last reached checkpoint (or start location).
+         *
+         * @param player the player
+         */
+        default void teleportToCheckpoint(@NotNull Player player) {}
+
+        /**
+         * Pauses an active session for the given player.
+         *
+         * @param player the player
+         * @return true if paused, false if player is not in a session or already paused
+         */
+        default boolean pauseSession(@NotNull Player player) {
+            return false;
+        }
+
+        /**
+         * Resumes a paused session for the given player.
+         *
+         * @param player the player
+         * @return true if resumed, false if not paused or not in session
+         */
+        default boolean resumeSession(@NotNull Player player) {
+            return false;
+        }
+
+        /**
+         * Gets the player's current visibility mode (ALL, TRANSLUCENT, NONE).
+         *
+         * @param player the player
+         * @return visibility mode name
+         */
+        @NotNull
+        default String getVisibilityMode(@NotNull Player player) {
+            return "ALL";
+        }
+
+        /**
+         * Sets the player's parkour visibility mode.
+         *
+         * @param player the player
+         * @param mode   the visibility mode (ALL, TRANSLUCENT, NONE)
+         */
+        default void setVisibilityMode(@NotNull Player player, @NotNull String mode) {}
+
+        /**
+         * Cycles the player's visibility mode (ALL -> TRANSLUCENT -> NONE -> ALL).
+         *
+         * @param player the player
+         * @return the new visibility mode
+         */
+        @NotNull
+        default String cycleVisibility(@NotNull Player player) {
+            return "ALL";
+        }
     }
 }

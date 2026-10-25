@@ -170,19 +170,33 @@ public final class PlayerMoveListener implements Listener {
         for (Block block : new Block[]{feetBlock, headBlock}) {
             String overrideKey = course.getModifierOverrides().get(block.getType());
             if (overrideKey != null) {
-                plugin.getBasicParkourAPI().getModifierRegistry()
-                    .getModifier(org.bukkit.NamespacedKey.fromString(overrideKey))
-                    .ifPresent(mod -> mod.apply(player, session));
-                return;
+                var modOpt = plugin.getBasicParkourAPI().getModifierRegistry()
+                    .getModifier(org.bukkit.NamespacedKey.fromString(overrideKey));
+                if (modOpt.isPresent()) {
+                    triggerModifier(player, session, block, modOpt.get());
+                    return;
+                }
             }
 
             // Global modifier registry
             for (BlockModifier modifier : plugin.getBasicParkourAPI().getModifierRegistry().getModifiers()) {
                 if (modifier.matches(block)) {
-                    modifier.apply(player, session);
+                    triggerModifier(player, session, block, modifier);
                     return;
                 }
             }
+        }
+    }
+
+    private void triggerModifier(@NotNull Player player,
+                                 @NotNull ParkourSession session,
+                                 @NotNull Block block,
+                                 @NotNull BlockModifier modifier) {
+        me.usainsrht.basicparkour.api.event.BlockModifierTriggerEvent event =
+            new me.usainsrht.basicparkour.api.event.BlockModifierTriggerEvent(player, session, block, modifier);
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
+        if (!event.isCancelled()) {
+            modifier.apply(player, session);
         }
     }
 

@@ -227,5 +227,262 @@ public interface ParkourCourse {
     default Optional<Boolean> isFallDamageFailsSession() {
         return Optional.empty();
     }
+
+    /**
+     * Creates a new fluent builder for defining a {@link ParkourCourse} programmatically.
+     *
+     * @param id the unique identifier for this course
+     * @return a new Builder
+     */
+    @NotNull
+    static Builder builder(@NotNull String id) {
+        return new Builder(id);
+    }
+
+    /**
+     * Fluent builder for {@link ParkourCourse}.
+     */
+    final class Builder {
+        private final String id;
+        private Component displayName;
+        private String worldName;
+        private CourseRegion startRegion;
+        private CourseRegion endRegion;
+        private final List<Location> startLocations = new java.util.ArrayList<>();
+        private CourseRegion portalRegion;
+        private boolean portalTeleport = false;
+        private final Set<Material> blockList = new java.util.HashSet<>();
+        private BlockListMode blockListMode = BlockListMode.BLACKLIST;
+        private Integer minY;
+        private DieMode dieMode = DieMode.RESTART_DIE;
+        private final List<Checkpoint> checkpoints = new java.util.ArrayList<>();
+        private final Map<Material, String> modifierOverrides = new java.util.HashMap<>();
+        private final List<String> rewardCommands = new java.util.ArrayList<>();
+        private long timeLimitMs = -1L;
+        private Location failLocation;
+        private Location completeLocation;
+        private Boolean preventDamage;
+        private Boolean fallDamageFailsSession;
+
+        public Builder(@NotNull String id) {
+            this.id = java.util.Objects.requireNonNull(id, "id cannot be null");
+            this.displayName = Component.text(id);
+        }
+
+        @NotNull
+        public Builder displayName(@NotNull Component displayName) {
+            this.displayName = java.util.Objects.requireNonNull(displayName, "displayName cannot be null");
+            return this;
+        }
+
+        @NotNull
+        public Builder displayName(@NotNull String miniMessage) {
+            this.displayName = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(miniMessage);
+            return this;
+        }
+
+        @NotNull
+        public Builder worldName(@NotNull String worldName) {
+            this.worldName = java.util.Objects.requireNonNull(worldName, "worldName cannot be null");
+            return this;
+        }
+
+        @NotNull
+        public Builder startRegion(@NotNull CourseRegion startRegion) {
+            this.startRegion = java.util.Objects.requireNonNull(startRegion, "startRegion cannot be null");
+            if (this.worldName == null && startRegion.getMin().getWorld() != null) {
+                this.worldName = startRegion.getMin().getWorld().getName();
+            }
+            return this;
+        }
+
+        @NotNull
+        public Builder endRegion(@NotNull CourseRegion endRegion) {
+            this.endRegion = java.util.Objects.requireNonNull(endRegion, "endRegion cannot be null");
+            return this;
+        }
+
+        @NotNull
+        public Builder addStartLocation(@NotNull Location location) {
+            this.startLocations.add(location.clone());
+            return this;
+        }
+
+        @NotNull
+        public Builder startLocations(@NotNull java.util.Collection<Location> locations) {
+            this.startLocations.clear();
+            locations.forEach(loc -> this.startLocations.add(loc.clone()));
+            return this;
+        }
+
+        @NotNull
+        public Builder portalRegion(@org.jetbrains.annotations.Nullable CourseRegion portalRegion) {
+            this.portalRegion = portalRegion;
+            return this;
+        }
+
+        @NotNull
+        public Builder portalTeleport(boolean portalTeleport) {
+            this.portalTeleport = portalTeleport;
+            return this;
+        }
+
+        @NotNull
+        public Builder blockList(@NotNull java.util.Collection<Material> materials) {
+            this.blockList.clear();
+            this.blockList.addAll(materials);
+            return this;
+        }
+
+        @NotNull
+        public Builder addBlockListMaterial(@NotNull Material material) {
+            this.blockList.add(material);
+            return this;
+        }
+
+        @NotNull
+        public Builder blockListMode(@NotNull BlockListMode mode) {
+            this.blockListMode = java.util.Objects.requireNonNull(mode, "blockListMode cannot be null");
+            return this;
+        }
+
+        @NotNull
+        public Builder minY(@org.jetbrains.annotations.Nullable Integer minY) {
+            this.minY = minY;
+            return this;
+        }
+
+        @NotNull
+        public Builder dieMode(@NotNull DieMode dieMode) {
+            this.dieMode = java.util.Objects.requireNonNull(dieMode, "dieMode cannot be null");
+            return this;
+        }
+
+        @NotNull
+        public Builder addCheckpoint(@NotNull Checkpoint checkpoint) {
+            this.checkpoints.add(checkpoint);
+            return this;
+        }
+
+        @NotNull
+        public Builder checkpoints(@NotNull java.util.Collection<Checkpoint> checkpoints) {
+            this.checkpoints.clear();
+            this.checkpoints.addAll(checkpoints);
+            return this;
+        }
+
+        @NotNull
+        public Builder addModifierOverride(@NotNull Material material, @NotNull String modifierKey) {
+            this.modifierOverrides.put(material, modifierKey);
+            return this;
+        }
+
+        @NotNull
+        public Builder modifierOverrides(@NotNull Map<Material, String> overrides) {
+            this.modifierOverrides.clear();
+            this.modifierOverrides.putAll(overrides);
+            return this;
+        }
+
+        @NotNull
+        public Builder addRewardCommand(@NotNull String command) {
+            this.rewardCommands.add(command);
+            return this;
+        }
+
+        @NotNull
+        public Builder rewardCommands(@NotNull java.util.Collection<String> commands) {
+            this.rewardCommands.clear();
+            this.rewardCommands.addAll(commands);
+            return this;
+        }
+
+        @NotNull
+        public Builder timeLimitMs(long timeLimitMs) {
+            this.timeLimitMs = timeLimitMs;
+            return this;
+        }
+
+        @NotNull
+        public Builder failLocation(@org.jetbrains.annotations.Nullable Location failLocation) {
+            this.failLocation = failLocation != null ? failLocation.clone() : null;
+            return this;
+        }
+
+        @NotNull
+        public Builder completeLocation(@org.jetbrains.annotations.Nullable Location completeLocation) {
+            this.completeLocation = completeLocation != null ? completeLocation.clone() : null;
+            return this;
+        }
+
+        @NotNull
+        public Builder preventDamage(@org.jetbrains.annotations.Nullable Boolean preventDamage) {
+            this.preventDamage = preventDamage;
+            return this;
+        }
+
+        @NotNull
+        public Builder fallDamageFailsSession(@org.jetbrains.annotations.Nullable Boolean fallDamageFailsSession) {
+            this.fallDamageFailsSession = fallDamageFailsSession;
+            return this;
+        }
+
+        @NotNull
+        public ParkourCourse build() {
+            if (worldName == null) {
+                throw new IllegalStateException("Course worldName must be specified.");
+            }
+            if (startRegion == null) {
+                throw new IllegalStateException("Course startRegion must be specified.");
+            }
+            if (endRegion == null) {
+                throw new IllegalStateException("Course endRegion must be specified.");
+            }
+
+            final String fId = id;
+            final Component fDisplayName = displayName;
+            final String fWorldName = worldName;
+            final CourseRegion fStartRegion = startRegion;
+            final CourseRegion fEndRegion = endRegion;
+            final List<Location> fStartLocations = List.copyOf(startLocations);
+            final CourseRegion fPortalRegion = portalRegion;
+            final boolean fPortalTeleport = portalTeleport;
+            final Set<Material> fBlockList = Set.copyOf(blockList);
+            final BlockListMode fBlockListMode = blockListMode;
+            final Integer fMinY = minY;
+            final DieMode fDieMode = dieMode;
+            final List<Checkpoint> fCheckpoints = List.copyOf(checkpoints);
+            final Map<Material, String> fModifierOverrides = Map.copyOf(modifierOverrides);
+            final List<String> fRewardCommands = List.copyOf(rewardCommands);
+            final long fTimeLimitMs = timeLimitMs;
+            final Location fFailLoc = failLocation;
+            final Location fCompLoc = completeLocation;
+            final Boolean fPreventDamage = preventDamage;
+            final Boolean fFallDamageFails = fallDamageFailsSession;
+
+            return new ParkourCourse() {
+                @Override @NotNull public String getId() { return fId; }
+                @Override @NotNull public Component getDisplayName() { return fDisplayName; }
+                @Override @NotNull public String getWorldName() { return fWorldName; }
+                @Override @NotNull public CourseRegion getStartRegion() { return fStartRegion; }
+                @Override @NotNull public CourseRegion getEndRegion() { return fEndRegion; }
+                @Override @NotNull @Unmodifiable public List<Location> getStartLocations() { return fStartLocations; }
+                @Override @NotNull public Optional<CourseRegion> getPortalRegion() { return Optional.ofNullable(fPortalRegion); }
+                @Override public boolean isPortalTeleport() { return fPortalTeleport; }
+                @Override @NotNull @Unmodifiable public Set<Material> getBlockList() { return fBlockList; }
+                @Override @NotNull public BlockListMode getBlockListMode() { return fBlockListMode; }
+                @Override @NotNull public Optional<Integer> getMinY() { return Optional.ofNullable(fMinY); }
+                @Override @NotNull public DieMode getDieMode() { return fDieMode; }
+                @Override @NotNull @Unmodifiable public List<Checkpoint> getCheckpoints() { return fCheckpoints; }
+                @Override @NotNull @Unmodifiable public Map<Material, String> getModifierOverrides() { return fModifierOverrides; }
+                @Override @NotNull @Unmodifiable public List<String> getRewardCommands() { return fRewardCommands; }
+                @Override public long getTimeLimitMs() { return fTimeLimitMs; }
+                @Override @NotNull public Optional<Location> getFailLocation() { return Optional.ofNullable(fFailLoc); }
+                @Override @NotNull public Optional<Location> getCompleteLocation() { return Optional.ofNullable(fCompLoc); }
+                @Override @NotNull public Optional<Boolean> isPreventDamage() { return Optional.ofNullable(fPreventDamage); }
+                @Override @NotNull public Optional<Boolean> isFallDamageFailsSession() { return Optional.ofNullable(fFallDamageFails); }
+            };
+        }
+    }
 }
 

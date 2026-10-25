@@ -12,6 +12,12 @@ public enum SessionState {
     ACTIVE,
 
     /**
+     * The session is currently paused. The elapsed timer is frozen,
+     * checkpoint triggers and modifiers are bypassed.
+     */
+    PAUSED,
+
+    /**
      * The session has been completed successfully.
      * The timer has stopped and the elapsed time has been recorded.
      */

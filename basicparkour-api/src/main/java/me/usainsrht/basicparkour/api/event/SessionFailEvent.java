@@ -15,19 +15,17 @@ import org.jetbrains.annotations.NotNull;
  * teleport has already been scheduled. Listeners may use this event to
  * play sounds, show effects, or update external statistics.</p>
  */
-public class SessionFailEvent extends Event {
+public class SessionFailEvent extends PlayerParkourEvent {
 
     private static final HandlerList HANDLERS = new HandlerList();
 
-    private final Player player;
     private final ParkourSession session;
     private final FailReason reason;
 
     public SessionFailEvent(@NotNull Player player,
                              @NotNull ParkourSession session,
                              @NotNull FailReason reason) {
-        super(false);
-        this.player = player;
+        super(player);
         this.session = session;
         this.reason = reason;
     }

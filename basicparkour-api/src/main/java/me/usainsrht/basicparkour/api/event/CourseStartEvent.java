@@ -14,17 +14,15 @@ import org.jetbrains.annotations.NotNull;
  * not be tracked for this entry event. Subsequent entries into the start region
  * will fire this event again.</p>
  */
-public class CourseStartEvent extends Event implements Cancellable {
+public class CourseStartEvent extends PlayerParkourEvent implements Cancellable {
 
     private static final HandlerList HANDLERS = new HandlerList();
     private boolean cancelled;
 
-    private final Player player;
     private final ParkourCourse course;
 
     public CourseStartEvent(@NotNull Player player, @NotNull ParkourCourse course) {
-        super(false); // synchronous
-        this.player = player;
+        super(player);
         this.course = course;
     }
 

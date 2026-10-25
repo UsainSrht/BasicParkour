@@ -15,28 +15,39 @@ import org.jetbrains.annotations.Nullable;
  * by the time listeners receive it. Use the timer data here to display results or
  * trigger external integrations.</p>
  */
-public class CourseCompleteEvent extends Event {
+public class CourseCompleteEvent extends PlayerParkourEvent {
 
     private static final HandlerList HANDLERS = new HandlerList();
 
-    private final Player player;
     private final ParkourSession session;
     private final long elapsedMs;
     private final boolean isPersonalBest;
     private final @Nullable PlayerRecord previousBest;
+    private final java.util.List<String> rewardCommands;
 
     public CourseCompleteEvent(@NotNull Player player,
                                 @NotNull ParkourSession session,
                                 long elapsedMs,
                                 boolean isPersonalBest,
                                 @Nullable PlayerRecord previousBest) {
-        super(false);
-        this.player = player;
+        this(player, session, elapsedMs, isPersonalBest, previousBest, java.util.List.of());
+    }
+
+    public CourseCompleteEvent(@NotNull Player player,
+                                @NotNull ParkourSession session,
+                                long elapsedMs,
+                                boolean isPersonalBest,
+                                @Nullable PlayerRecord previousBest,
+                                @NotNull java.util.List<String> rewardCommands) {
+        super(player);
         this.session = session;
         this.elapsedMs = elapsedMs;
         this.isPersonalBest = isPersonalBest;
         this.previousBest = previousBest;
+        this.rewardCommands = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(rewardCommands));
     }
+
+    @NotNull public java.util.List<String> getRewardCommands() { return rewardCommands; }
 
     @NotNull public Player getPlayer() { return player; }
     @NotNull public ParkourSession getSession() { return session; }

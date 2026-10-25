@@ -9,6 +9,8 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import me.usainsrht.basicparkour.api.BasicParkourAPI;
 import me.usainsrht.basicparkour.api.course.ParkourCourse;
+import me.usainsrht.basicparkour.api.event.CourseLeaveEvent;
+import me.usainsrht.basicparkour.api.event.CourseRestartEvent;
 import me.usainsrht.basicparkour.api.generator.GeneratorTemplate;
 import me.usainsrht.basicparkour.api.storage.LeaderboardEntry;
 import me.usainsrht.basicparkour.api.storage.PlayerRecord;
@@ -673,12 +675,12 @@ public final class BasicParkourCommand {
 
     private void cmdLeave(@NotNull CommandSender sender) {
         if (!(sender instanceof Player player)) return;
-        sessionManager.leaveSession(player);
+        sessionManager.leaveSession(player, true, CourseLeaveEvent.LeaveReason.COMMAND);
     }
 
     private void cmdRestart(@NotNull CommandSender sender) {
         if (!(sender instanceof Player player)) return;
-        sessionManager.restartSession(player);
+        sessionManager.restartSession(player, CourseRestartEvent.RestartReason.COMMAND);
     }
 
     private void cmdCheckpoint(@NotNull CommandSender sender) {

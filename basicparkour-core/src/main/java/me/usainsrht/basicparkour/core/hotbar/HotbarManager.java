@@ -1,5 +1,7 @@
 package me.usainsrht.basicparkour.core.hotbar;
 
+import me.usainsrht.basicparkour.api.event.CourseLeaveEvent;
+import me.usainsrht.basicparkour.api.event.CourseRestartEvent;
 import me.usainsrht.basicparkour.core.BasicParkourPlugin;
 import me.usainsrht.basicparkour.core.session.SessionManager;
 import me.usainsrht.itemapi.yamlitem.YamlItem;
@@ -185,10 +187,10 @@ public final class HotbarManager implements Listener {
         event.setCancelled(true);
 
         switch (action) {
-            case RESTART -> sessionManager.restartSession(player);
+            case RESTART -> sessionManager.restartSession(player, CourseRestartEvent.RestartReason.HOTBAR);
             case CHECKPOINT -> sessionManager.teleportToCheckpoint(player);
             case VISIBILITY -> sessionManager.cycleVisibility(player);
-            case LEAVE -> sessionManager.leaveSession(player);
+            case LEAVE -> sessionManager.leaveSession(player, true, CourseLeaveEvent.LeaveReason.HOTBAR);
             case NONE -> {}
         }
     }

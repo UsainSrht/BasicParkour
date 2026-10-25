@@ -73,4 +73,47 @@ public interface CourseRegion {
             (getMin().getZ() + getMax().getZ()) / 2.0
         );
     }
+
+    /**
+     * Creates a CourseRegion bounded by two corner points. Corners are normalized automatically.
+     *
+     * @param corner1 first corner
+     * @param corner2 second corner
+     * @return the created CourseRegion
+     */
+    @NotNull
+    static CourseRegion of(@NotNull Location corner1, @NotNull Location corner2) {
+        Location min = new Location(
+            corner1.getWorld(),
+            Math.min(corner1.getX(), corner2.getX()),
+            Math.min(corner1.getY(), corner2.getY()),
+            Math.min(corner1.getZ(), corner2.getZ())
+        );
+        Location max = new Location(
+            corner1.getWorld(),
+            Math.max(corner1.getX(), corner2.getX()),
+            Math.max(corner1.getY(), corner2.getY()),
+            Math.max(corner1.getZ(), corner2.getZ())
+        );
+        return new CourseRegion() {
+            @Override
+            @NotNull
+            public Location getMin() {
+                return min.clone();
+            }
+
+            @Override
+            @NotNull
+            public Location getMax() {
+                return max.clone();
+            }
+
+            @Override
+            public String toString() {
+                return "CourseRegion{min=(%.1f, %.1f, %.1f), max=(%.1f, %.1f, %.1f)}".formatted(
+                    min.getX(), min.getY(), min.getZ(), max.getX(), max.getY(), max.getZ()
+                );
+            }
+        };
+    }
 }

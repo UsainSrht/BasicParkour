@@ -128,8 +128,9 @@ public final class BasicParkourPlugin extends JavaPlugin {
         ghostRecorder = new GhostRecorderImpl(this, scheduler);
 
         // ── 7. API singleton ─────────────────────────────────────────────────
-        basicParkourAPI = new BasicParkourAPIImpl(sessionManager, modifierRegistry, repository);
+        basicParkourAPI = new BasicParkourAPIImpl(sessionManager, modifierRegistry, repository, ghostRecorder);
         BasicParkourAPI.register(basicParkourAPI);
+        getServer().getServicesManager().register(BasicParkourAPI.class, basicParkourAPI, this, org.bukkit.plugin.ServicePriority.Normal);
 
         // ── 8. Load courses ──────────────────────────────────────────────────
         CourseLoader loader = new CourseLoader(this);
@@ -207,8 +208,22 @@ public final class BasicParkourPlugin extends JavaPlugin {
             hotbarManager.restoreAll();
         if (repository != null)
             repository.close();
+        if (basicParkourAPI != null) {
+            getServer().getServicesManager().unregister(BasicParkourAPI.class, basicParkourAPI);
+        }
         BasicParkourAPI.unregister();
         getLogger().info("[BasicParkour] Plugin disabled.");
+    }
+
+    /**
+     * Convenience static method to retrieve the registered {@link BasicParkourAPI} singleton.
+     *
+     * @return the API singleton
+     * @throws IllegalStateException if the plugin is not enabled
+     */
+    @NotNull
+    public static BasicParkourAPI getApi() {
+        return BasicParkourAPI.get();
     }
 
     // -----------------------------------------------------------------------
