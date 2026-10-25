@@ -180,7 +180,7 @@ public final class BasicParkourMiniPlaceholdersExpansion {
         // <basicparkour_current_blocks>
         builder.audiencePlaceholder(Player.class, "current_blocks", (player, queue, ctx) -> {
             int blocks = plugin.getSessionManager().getSession(player)
-                    .map(ParkourSession::getCurrentCheckpointIndex)
+                    .map(s -> Math.max(0, s.getCurrentCheckpointIndex()))
                     .orElse(0);
             return Tag.selfClosingInserting(Component.text(blocks));
         });

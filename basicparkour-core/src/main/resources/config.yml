@@ -325,9 +325,14 @@ generator:
   # Sound played when player increases block count in endless parkour
   block-sound:
     enabled: true
-    sound: "entity.experience_orb.pickup"
-    volume: 0.6
-    pitch: 1.2
+    sound: "block.note_block.bass"
+    volume: 0.8
+    # Shepard tone effect creates an auditory illusion of an infinitely ascending scale with no ceiling
+    shepard: true
+    # Steps per octave cycle (12 semitones = full musical octave)
+    shepard-cycle: 12
+    # Static pitch fallback used only if shepard is disabled
+    pitch: 1.0
 
   # Optional chat message sent when block count increases (empty by default so only the sound plays)
   # Placeholders available: <blocks>, <score>, <gained>

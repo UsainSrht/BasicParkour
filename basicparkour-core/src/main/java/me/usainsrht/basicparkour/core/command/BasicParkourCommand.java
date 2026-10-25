@@ -843,19 +843,19 @@ public final class BasicParkourCommand {
             Location p1 = editorManager != null ? editorManager.getPos1(player) : null;
             Location p2 = editorManager != null ? editorManager.getPos2(player) : null;
             if (p1 != null && p2 != null && p1.getWorld().equals(p2.getWorld())) {
-                cfg2.set("min.x", Math.min(p1.getX(), p2.getX()));
-                cfg2.set("min.y", Math.min(p1.getY(), p2.getY()));
-                cfg2.set("min.z", Math.min(p1.getZ(), p2.getZ()));
-                cfg2.set("max.x", Math.max(p1.getX(), p2.getX()) + 1.0);
-                cfg2.set("max.y", Math.max(p1.getY(), p2.getY()) + 1.0);
-                cfg2.set("max.z", Math.max(p1.getZ(), p2.getZ()) + 1.0);
+                cfg2.set("min.x", (double) Math.min(p1.getBlockX(), p2.getBlockX()));
+                cfg2.set("min.y", (double) Math.min(p1.getBlockY(), p2.getBlockY()));
+                cfg2.set("min.z", (double) Math.min(p1.getBlockZ(), p2.getBlockZ()));
+                cfg2.set("max.x", (double) Math.max(p1.getBlockX(), p2.getBlockX()) + 1.0);
+                cfg2.set("max.y", (double) Math.max(p1.getBlockY(), p2.getBlockY()) + 1.0);
+                cfg2.set("max.z", (double) Math.max(p1.getBlockZ(), p2.getBlockZ()) + 1.0);
             } else {
-                cfg2.set("min.x", loc.getBlockX() - 1);
-                cfg2.set("min.y", loc.getBlockY());
-                cfg2.set("min.z", loc.getBlockZ() - 1);
-                cfg2.set("max.x", loc.getBlockX() + 1);
-                cfg2.set("max.y", loc.getBlockY() + 2);
-                cfg2.set("max.z", loc.getBlockZ() + 1);
+                cfg2.set("min.x", (double) (loc.getBlockX() - 1));
+                cfg2.set("min.y", (double) loc.getBlockY());
+                cfg2.set("min.z", (double) (loc.getBlockZ() - 1));
+                cfg2.set("max.x", (double) (loc.getBlockX() + 2));
+                cfg2.set("max.y", (double) (loc.getBlockY() + 3));
+                cfg2.set("max.z", (double) (loc.getBlockZ() + 2));
             }
         } else {
             Block targetBlock = player.getTargetBlockExact(5);

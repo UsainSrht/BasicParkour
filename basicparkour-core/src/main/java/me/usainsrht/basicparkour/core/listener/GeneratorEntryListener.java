@@ -103,9 +103,19 @@ public final class GeneratorEntryListener implements Listener {
                 if (!ep.contains("min.x") || !ep.contains("max.x")) continue;
                 double minX = ep.getDouble("min.x"), minY = ep.getDouble("min.y"), minZ = ep.getDouble("min.z");
                 double maxX = ep.getDouble("max.x"), maxY = ep.getDouble("max.y"), maxZ = ep.getDouble("max.z");
+                double lowerX = Math.min(minX, maxX);
+                double upperX = Math.max(minX, maxX);
+                double lowerY = Math.min(minY, maxY);
+                double upperY = Math.max(minY, maxY);
+                double lowerZ = Math.min(minZ, maxZ);
+                double upperZ = Math.max(minZ, maxZ);
+                // If min equals max on any axis, expand to encompass the full 1-block span
+                if (upperX == lowerX) upperX += 1.0;
+                if (upperY == lowerY) upperY += 1.0;
+                if (upperZ == lowerZ) upperZ += 1.0;
                 portalEntries.add(new PortalEntry(templateId, worldName,
-                    Math.min(minX, maxX), Math.min(minY, maxY), Math.min(minZ, maxZ),
-                    Math.max(minX, maxX), Math.max(minY, maxY), Math.max(minZ, maxZ)));
+                    lowerX, lowerY, lowerZ,
+                    upperX, upperY, upperZ));
             } else {
                 // interact: single block location
                 double x = ep.getDouble("x"), y = ep.getDouble("y"), z = ep.getDouble("z");
@@ -119,12 +129,13 @@ public final class GeneratorEntryListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(@NotNull PlayerMoveEvent event) {
-        Player player = event.getPlayer();
         Location from = event.getFrom();
         Location to = event.getTo();
 
-        // Only process block changes
-        if (sameBlock(from, to)) return;
+        // Only process position changes (skip pure camera rotation)
+        if (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) return;
+
+        Player player = event.getPlayer();
 
         // Cooldown: skip if just triggered or recently left/failed a session
         if (isOnCooldown(player.getUniqueId())) return;
@@ -137,8 +148,8 @@ public final class GeneratorEntryListener implements Listener {
 
         for (PortalEntry entry : portalEntries) {
             if (!entry.worldName().equals(worldName)) continue;
-            if (entry.contains(to)) {
-                setEntryCooldown(player.getUniqueId(), 2500L);
+            if (entry.matches(player, to)) {
+                setEntryCooldown(player.getUniqueId(), 1000L);
                 startGeneratedRun(player, entry.templateId());
                 return;
             }
@@ -223,10 +234,27 @@ public final class GeneratorEntryListener implements Listener {
         double minX, double minY, double minZ,
         double maxX, double maxY, double maxZ
     ) {
+        boolean overlaps(@NotNull org.bukkit.util.BoundingBox box) {
+            return box.getMinX() <= maxX && box.getMaxX() >= minX
+                && box.getMinY() <= (maxY + 0.1) && box.getMaxY() >= (minY - 0.25)
+                && box.getMinZ() <= maxZ && box.getMaxZ() >= minZ;
+        }
+
         boolean contains(@NotNull Location loc) {
-            return loc.getX() >= minX && loc.getX() <= maxX
-                && loc.getY() >= minY && loc.getY() <= maxY
-                && loc.getZ() >= minZ && loc.getZ() <= maxZ;
+            double x = loc.getX();
+            double y = loc.getY();
+            double z = loc.getZ();
+            return x >= minX && x <= maxX
+                && y >= (minY - 0.25) && y <= (maxY + 0.1)
+                && z >= minZ && z <= maxZ;
+        }
+
+        boolean matches(@NotNull Player player, @NotNull Location loc) {
+            if (!player.getWorld().getName().equals(worldName)) return false;
+            try {
+                if (overlaps(player.getBoundingBox())) return true;
+            } catch (Throwable ignored) {}
+            return contains(loc);
         }
     }
 }

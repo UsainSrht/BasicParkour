@@ -1,6 +1,7 @@
 package me.usainsrht.basicparkour.api.course;
 
 import org.bukkit.Location;
+import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -37,13 +38,25 @@ public interface CourseRegion {
      * @return {@code true} if the location is inside the region
      */
     default boolean contains(@NotNull Location location) {
-        if (!location.getWorld().equals(getMin().getWorld())) return false;
+        if (!java.util.Objects.equals(location.getWorld(), getMin().getWorld())) return false;
         double x = location.getX();
         double y = location.getY();
         double z = location.getZ();
         return x >= getMin().getX() && x <= getMax().getX()
-            && y >= getMin().getY() && y <= getMax().getY()
+            && y >= (getMin().getY() - 0.25) && y <= (getMax().getY() + 0.1)
             && z >= getMin().getZ() && z <= getMax().getZ();
+    }
+
+    /**
+     * Tests whether the given bounding box intersects or overlaps with this region.
+     *
+     * @param box the bounding box to test
+     * @return {@code true} if the bounding box overlaps this region
+     */
+    default boolean overlaps(@NotNull BoundingBox box) {
+        return box.getMinX() <= getMax().getX() && box.getMaxX() >= getMin().getX()
+            && box.getMinY() <= (getMax().getY() + 0.1) && box.getMaxY() >= (getMin().getY() - 0.25)
+            && box.getMinZ() <= getMax().getZ() && box.getMaxZ() >= getMin().getZ();
     }
 
     /**

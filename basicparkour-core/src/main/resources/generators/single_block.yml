@@ -25,7 +25,7 @@ length-type: INFINITE
 fixed-length: 30
 
 block-mode: SLIDING_WINDOW
-sliding-window-ahead: 15
+sliding-window-ahead: 4
 sliding-window-mode: DUAL
 sliding-window-time-seconds: 12.0
 
@@ -42,9 +42,9 @@ prevent-damage: true
 # If omitted, defaults to global config (protections.fall-damage-fails-session).
 fall-damage-fails-session: true
 
-cleanup-delay-seconds: 30
+cleanup-delay-seconds: 0
 
-entry-mode: DEDICATED_WORLD
+entry-mode: WALK_IN
 dedicated-world: "world"
 dedicated-world-radius: 20000
 

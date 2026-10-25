@@ -228,6 +228,12 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             plugin.getGhostRecorder().startRecording(player);
         }
 
+        // If endless generated course, advance checkpoint to 0 immediately so block count starts at 0
+        if (course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse gpc
+                && gpc.getTemplate().lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE) {
+            session.advanceCheckpoint();
+        }
+
         // Notify player via YamlMessage with MiniPlaceholders support
         messages.send(messages.getCourseStart(), player,
             Placeholder.component("course", course.getDisplayName()));
@@ -298,7 +304,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                 && gpc.getTemplate().lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE;
 
         if (isEndless) {
-            playBlockCountSound(player);
+            playBlockCountSound(player, targetIdx);
             sendBlockCountMessage(player, targetIdx, gained);
             if (plugin.getGeneratorManager() != null) {
                 plugin.getGeneratorManager().notifyPlayerProgress(player, targetIdx);
@@ -312,16 +318,47 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         return true;
     }
 
-    private void playBlockCountSound(@NotNull Player player) {
+    private void playBlockCountSound(@NotNull Player player, int blockCount) {
         if (!plugin.getConfig().getBoolean("generator.block-sound.enabled", true)) return;
-        String soundKey = plugin.getConfig().getString("generator.block-sound.sound", "entity.experience_orb.pickup");
-        float volume = (float) plugin.getConfig().getDouble("generator.block-sound.volume", 0.6);
-        float pitch = (float) plugin.getConfig().getDouble("generator.block-sound.pitch", 1.2);
+        String soundKey = plugin.getConfig().getString("generator.block-sound.sound", "block.note_block.bass");
+        float baseVolume = (float) plugin.getConfig().getDouble("generator.block-sound.volume", 0.8);
+        boolean shepard = plugin.getConfig().getBoolean("generator.block-sound.shepard", true);
+
+        if (!shepard) {
+            float pitch = (float) plugin.getConfig().getDouble("generator.block-sound.pitch", 1.0);
+            playSound(player, soundKey, baseVolume, pitch);
+            return;
+        }
+
+        int cycle = Math.max(1, plugin.getConfig().getInt("generator.block-sound.shepard-cycle", 12));
+        // Normalize block count so block 1 is step 0
+        int step = Math.floorMod(blockCount - 1, cycle);
+        double fraction = (double) step / cycle;
+
+        // Two octaves spanning Minecraft's pitch range [0.5, 2.0]
+        float pitchLow = (float) (0.5 * Math.pow(2.0, fraction));
+        float pitchHigh = (float) (1.0 * Math.pow(2.0, fraction));
+
+        // Equal-power sinusoidal crossfade (vLow^2 + vHigh^2 = baseVolume^2)
+        double angle = fraction * (Math.PI / 2.0);
+        float volLow = (float) (baseVolume * Math.sin(angle));
+        float volHigh = (float) (baseVolume * Math.cos(angle));
+
+        if (volLow > 0.01f) {
+            playSound(player, soundKey, volLow, pitchLow);
+        }
+        if (volHigh > 0.01f) {
+            playSound(player, soundKey, volHigh, pitchHigh);
+        }
+    }
+
+    private void playSound(@NotNull Player player, @NotNull String soundKey, float volume, float pitch) {
+        Location loc = player.getLocation();
         try {
-            org.bukkit.Sound enumSound = org.bukkit.Sound.valueOf(soundKey.toUpperCase().replace('.', '_'));
-            player.playSound(player.getLocation(), enumSound, org.bukkit.SoundCategory.PLAYERS, volume, pitch);
+            org.bukkit.Sound enumSound = org.bukkit.Sound.valueOf(soundKey.toUpperCase(java.util.Locale.ROOT).replace('.', '_'));
+            player.playSound(loc, enumSound, org.bukkit.SoundCategory.PLAYERS, volume, pitch);
         } catch (IllegalArgumentException ex) {
-            player.playSound(player.getLocation(), soundKey.toLowerCase(), org.bukkit.SoundCategory.PLAYERS, volume, pitch);
+            player.playSound(loc, soundKey.toLowerCase(java.util.Locale.ROOT), org.bukkit.SoundCategory.PLAYERS, volume, pitch);
         }
     }
 
@@ -388,7 +425,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         String tpOnComplete = plugin.getConfig().getString("session.teleport-on-complete", "NONE").toUpperCase(java.util.Locale.ROOT);
         if (compLoc != null) {
             if (plugin.getGeneratorEntryListener() != null) {
-                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 1000L);
             }
             markInternalTeleport(player.getUniqueId());
             scheduler.runOnEntity(player, () ->
@@ -396,7 +433,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         } else if (tpOnComplete.equals("JOIN_LOCATION")) {
             Location joinLoc = session.getJoinLocation();
             if (plugin.getGeneratorEntryListener() != null) {
-                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 1000L);
             }
             markInternalTeleport(player.getUniqueId());
             scheduler.runOnEntity(player, () ->
@@ -535,7 +572,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             respawnLoc = resolveFailLocation(session);
             restorePlayerState(player);
             if (plugin.getGeneratorEntryListener() != null) {
-                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+                plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 1000L);
             }
         } else {
             // Determine respawn location: last checkpoint or start center
@@ -661,7 +698,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         messages.send(messages.getSessionLeave(), player);
 
         if (plugin.getGeneratorEntryListener() != null) {
-            plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 3000L);
+            plugin.getGeneratorEntryListener().setEntryCooldown(player.getUniqueId(), 1000L);
         }
 
         if (isGen || plugin.getConfig().getBoolean("session.teleport-on-leave", true)) {
@@ -858,7 +895,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                     && gpc.getTemplate().lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE;
 
             if (isEndless) {
-                int blocks = session.getCurrentCheckpointIndex();
+                int blocks = Math.max(0, session.getCurrentCheckpointIndex());
                 messages.send(messages.getTimerDisplayEndless(), player,
                     Placeholder.parsed("time", snapshot.formatted()),
                     Placeholder.parsed("blocks", String.valueOf(blocks)),

@@ -108,7 +108,7 @@ public final class BasicParkourExpansion extends PlaceholderExpansion {
         if (params.equalsIgnoreCase("current_blocks")) {
             if (player == null) return "0";
             return plugin.getSessionManager().getSession(player)
-                    .map(s -> String.valueOf(s.getCurrentCheckpointIndex()))
+                    .map(s -> String.valueOf(Math.max(0, s.getCurrentCheckpointIndex())))
                     .orElse("0");
         }
 

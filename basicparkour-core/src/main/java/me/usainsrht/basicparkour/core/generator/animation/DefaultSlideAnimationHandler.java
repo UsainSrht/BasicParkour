@@ -22,6 +22,8 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
     public static final DefaultSlideAnimationHandler INSTANCE = new DefaultSlideAnimationHandler();
 
     private static final int SLIDE_TICKS = 5;
+    private static final float DISPLAY_SCALE = 0.9999f;
+    private static final float DISPLAY_OFFSET = (1.0f - DISPLAY_SCALE) / 2.0f;
 
     private DefaultSlideAnimationHandler() {}
 
@@ -43,11 +45,12 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
             return;
         }
 
-        // Relative offset from target block to previous platform
-        float dx = (float) (previousPlatformLocation.getX() - targetLoc.getX());
-        float dy = (float) (previousPlatformLocation.getY() - targetLoc.getY());
-        float dz = (float) (previousPlatformLocation.getZ() - targetLoc.getZ());
+        // Relative offset from target block to previous platform (inset by DISPLAY_OFFSET to eliminate Z-fighting)
+        float dx = (float) (previousPlatformLocation.getX() - targetLoc.getX()) + DISPLAY_OFFSET;
+        float dy = (float) (previousPlatformLocation.getY() - targetLoc.getY()) + DISPLAY_OFFSET;
+        float dz = (float) (previousPlatformLocation.getZ() - targetLoc.getZ()) + DISPLAY_OFFSET;
         Vector3f initialTranslation = new Vector3f(dx, dy, dz);
+        Vector3f blockScale = new Vector3f(DISPLAY_SCALE, DISPLAY_SCALE, DISPLAY_SCALE);
 
         try {
             BlockDisplay display = targetLoc.getWorld().spawn(targetLoc, BlockDisplay.class, d -> {
@@ -55,14 +58,14 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
                 d.setTransformation(new Transformation(
                     initialTranslation,
                     new AxisAngle4f(),
-                    new Vector3f(1.0f, 1.0f, 1.0f),
+                    blockScale,
                     new AxisAngle4f()
                 ));
             });
 
             instance.activeDisplays.add(display);
 
-            // Tick 1: Trigger smooth interpolation towards (0, 0, 0)
+            // Tick 1: Trigger smooth interpolation towards (DISPLAY_OFFSET, DISPLAY_OFFSET, DISPLAY_OFFSET)
             scheduler.runAtLocationLater(targetLoc, () -> {
                 if (!instance.isActive() || display.isDead()) {
                     instance.activeDisplays.remove(display);
@@ -72,9 +75,9 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
                 display.setInterpolationDelay(0);
                 display.setInterpolationDuration(SLIDE_TICKS);
                 display.setTransformation(new Transformation(
-                    new Vector3f(0.0f, 0.0f, 0.0f),
+                    new Vector3f(DISPLAY_OFFSET, DISPLAY_OFFSET, DISPLAY_OFFSET),
                     new AxisAngle4f(),
-                    new Vector3f(1.0f, 1.0f, 1.0f),
+                    blockScale,
                     new AxisAngle4f()
                 ));
 

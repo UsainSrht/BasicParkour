@@ -21,6 +21,8 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
     public static final GrowAnimationHandler INSTANCE = new GrowAnimationHandler();
 
     private static final int GROW_TICKS = 5;
+    private static final float DISPLAY_SCALE = 0.9999f;
+    private static final float DISPLAY_OFFSET = (1.0f - DISPLAY_SCALE) / 2.0f;
 
     private GrowAnimationHandler() {}
 
@@ -52,7 +54,7 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
 
             instance.activeDisplays.add(display);
 
-            // Tick 1: Trigger smooth expansion to full 1.0 scale
+            // Tick 1: Trigger smooth expansion to full 0.9999 scale (inset slightly to avoid Z-fighting)
             scheduler.runAtLocationLater(targetLoc, () -> {
                 if (!instance.isActive() || display.isDead()) {
                     instance.activeDisplays.remove(display);
@@ -62,9 +64,9 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
                 display.setInterpolationDelay(0);
                 display.setInterpolationDuration(GROW_TICKS);
                 display.setTransformation(new Transformation(
-                    new Vector3f(0.0f, 0.0f, 0.0f),
+                    new Vector3f(DISPLAY_OFFSET, DISPLAY_OFFSET, DISPLAY_OFFSET),
                     new AxisAngle4f(),
-                    new Vector3f(1.0f, 1.0f, 1.0f),
+                    new Vector3f(DISPLAY_SCALE, DISPLAY_SCALE, DISPLAY_SCALE),
                     new AxisAngle4f()
                 ));
 

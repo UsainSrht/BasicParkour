@@ -55,8 +55,8 @@ public final class PlayerMoveListener implements Listener {
         Location from = event.getFrom();
         Location to = event.getTo();
 
-        // Skip if only head moved (no block change)
-        if (sameBlock(from, to)) return;
+        // Skip if position hasn't changed (e.g. only camera rotation)
+        if (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) return;
 
         Optional<ParkourSession> sessionOpt = sessionManager.getSession(player);
 
@@ -80,7 +80,7 @@ public final class PlayerMoveListener implements Listener {
         }
 
         // ── 1. End region check ──────────────────────────────────────────────
-        if (course.getEndRegion().contains(to)) {
+        if (course.getEndRegion().overlaps(player.getBoundingBox()) || course.getEndRegion().contains(to)) {
             sessionManager.completeSession(player);
             return;
         }
@@ -94,14 +94,14 @@ public final class PlayerMoveListener implements Listener {
             // Check upcoming checkpoints in case player jumped ahead skipping intermediate blocks
             for (int i = currentIdx + 1; i < checkpoints.size(); i++) {
                 me.usainsrht.basicparkour.api.course.Checkpoint cp = checkpoints.get(i);
-                if (cp.getTriggerRegion().contains(to)) {
+                if (cp.getTriggerRegion().overlaps(player.getBoundingBox()) || cp.getTriggerRegion().contains(to)) {
                     sessionManager.handleCheckpointReach(player, cp);
                     break;
                 }
             }
         } else {
             session.getNextCheckpoint().ifPresent(checkpoint -> {
-                if (checkpoint.getTriggerRegion().contains(to)) {
+                if (checkpoint.getTriggerRegion().overlaps(player.getBoundingBox()) || checkpoint.getTriggerRegion().contains(to)) {
                     sessionManager.handleCheckpointReach(player, checkpoint);
                 }
             });
@@ -194,14 +194,17 @@ public final class PlayerMoveListener implements Listener {
         for (ParkourCourse course : plugin.getBasicParkourAPI().getCourseRegistry().getCourses()) {
             // Ensure same world
             if (!course.getWorldName().equals(to.getWorld().getName())) continue;
-            if (course.getStartRegion().contains(to)) {
+            if (course.getStartRegion().overlaps(player.getBoundingBox()) || course.getStartRegion().contains(to)) {
                 // When player walks into the start region, start right there without teleporting
                 sessionManager.startSession(player, course, false);
                 return; // Start at most one course
             }
-            if (course.getPortalRegion().isPresent() && course.getPortalRegion().get().contains(to)) {
-                sessionManager.startSession(player, course, course.isPortalTeleport());
-                return;
+            if (course.getPortalRegion().isPresent()) {
+                var portal = course.getPortalRegion().get();
+                if (portal.overlaps(player.getBoundingBox()) || portal.contains(to)) {
+                    sessionManager.startSession(player, course, course.isPortalTeleport());
+                    return;
+                }
             }
         }
     }
