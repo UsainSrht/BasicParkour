@@ -5,5 +5,6 @@ package me.usainsrht.basicparkour.core.hologram;
  */
 public enum HologramType {
     LEADERBOARD,
-    COURSE_INFO
+    COURSE_INFO,
+    CUSTOM
 }

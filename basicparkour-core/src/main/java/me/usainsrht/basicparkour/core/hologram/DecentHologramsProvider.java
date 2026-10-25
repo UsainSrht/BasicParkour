@@ -29,16 +29,34 @@ public final class DecentHologramsProvider implements HologramProvider {
         if (!isAvailable()) return;
 
         try {
+            List<String> formattedLines = convertLines(lines);
             Hologram existing = DHAPI.getHologram(name);
             if (existing != null) {
                 DHAPI.moveHologram(existing, location);
-                DHAPI.setHologramLines(existing, new ArrayList<>(lines));
+                DHAPI.setHologramLines(existing, new ArrayList<>(formattedLines));
             } else {
-                DHAPI.createHologram(name, location, false, new ArrayList<>(lines));
+                DHAPI.createHologram(name, location, false, new ArrayList<>(formattedLines));
             }
         } catch (Throwable t) {
             Bukkit.getLogger().warning("[BasicParkour] Error in DecentHologramsProvider (" + name + "): " + t.getMessage());
         }
+    }
+
+    private @NotNull List<String> convertLines(@NotNull List<String> lines) {
+        List<String> result = new ArrayList<>(lines.size());
+        for (String line : lines) {
+            try {
+                if (line.contains("<") && line.contains(">")) {
+                    net.kyori.adventure.text.Component comp = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(line);
+                    result.add(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(comp));
+                } else {
+                    result.add(line.replace('&', '§'));
+                }
+            } catch (Exception e) {
+                result.add(line.replace('&', '§'));
+            }
+        }
+        return result;
     }
 
     @Override

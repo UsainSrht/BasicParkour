@@ -476,6 +476,7 @@ public final class BasicParkourCommand {
                                         .suggests((ctx, builder) -> {
                                             builder.suggest("leaderboard");
                                             builder.suggest("course_info");
+                                            builder.suggest("custom");
                                             return builder.buildFuture();
                                         })
                                         .then(Commands.argument("courseId", StringArgumentType.word())
@@ -485,14 +486,15 @@ public final class BasicParkourCommand {
                                                     return builder.buildFuture();
                                                 })
                                                 .executes(ctx -> {
+                                                    int defLimit = hologramManager != null ? hologramManager.getConfig().getDefaultLimit() : 10;
                                                     cmdHologramCreate(ctx.getSource().getSender(),
                                                             StringArgumentType.getString(ctx, "name"),
                                                             StringArgumentType.getString(ctx, "type"),
                                                             StringArgumentType.getString(ctx, "courseId"),
-                                                            10);
+                                                            defLimit);
                                                     return Command.SINGLE_SUCCESS;
                                                 })
-                                                .then(Commands.argument("limit", IntegerArgumentType.integer(1, 50))
+                                                .then(Commands.argument("limit", IntegerArgumentType.integer(1, 100))
                                                         .executes(ctx -> {
                                                             cmdHologramCreate(ctx.getSource().getSender(),
                                                                     StringArgumentType.getString(ctx, "name"),
@@ -1193,7 +1195,7 @@ public final class BasicParkourCommand {
         try {
             type = me.usainsrht.basicparkour.core.hologram.HologramType.valueOf(typeStr.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            send(sender, "<red>Invalid hologram type. Use 'leaderboard' or 'course_info'.</red>");
+            send(sender, "<red>Invalid hologram type. Use 'leaderboard', 'course_info', or 'custom'.</red>");
             return;
         }
 

@@ -300,8 +300,7 @@ public final class BasicParkourPlugin extends JavaPlugin {
                                 }
 
                                 if (hologramManager != null) {
-                                    hologramManager.selectProvider();
-                                    hologramManager.load();
+                                    hologramManager.reload();
                                 }
                                 if (npcManager != null) {
                                     npcManager.load();

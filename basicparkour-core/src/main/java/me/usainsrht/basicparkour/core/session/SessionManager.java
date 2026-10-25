@@ -501,7 +501,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                 .thenAccept(isNewBest -> {
                     // Refresh holograms and top holder NPCs for this course
                     if (plugin.getHologramManager() != null) {
-                        plugin.getHologramManager().refreshCourseHolograms(targetCourseId);
+                        plugin.getHologramManager().onCourseComplete(targetCourseId, isNewBest);
                     }
                     if (plugin.getNpcManager() != null) {
                         plugin.getNpcManager().updateTopHolders(targetCourseId);
@@ -629,7 +629,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                             });
                         }
                         if (plugin.getHologramManager() != null) {
-                            plugin.getHologramManager().refreshCourseHolograms(leaderboardCourseId);
+                            plugin.getHologramManager().onCourseComplete(leaderboardCourseId, isNewBest);
                         }
                         if (plugin.getNpcManager() != null) {
                             plugin.getNpcManager().updateTopHolders(leaderboardCourseId);
@@ -774,7 +774,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                         });
                     }
                     if (plugin.getHologramManager() != null) {
-                        plugin.getHologramManager().refreshCourseHolograms(leaderboardCourseId);
+                        plugin.getHologramManager().onCourseComplete(leaderboardCourseId, isNewBest);
                     }
                     if (plugin.getNpcManager() != null) {
                         plugin.getNpcManager().updateTopHolders(leaderboardCourseId);

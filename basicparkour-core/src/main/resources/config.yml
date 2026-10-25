@@ -237,10 +237,145 @@ ghost:
 
 # ─── Hologram System ──────────────────────────────────────────────────────────
 hologram:
+  # Whether the hologram system is enabled.
+  enabled: true
+
   # Preferred provider. Options: auto | FancyHolograms | DecentHolograms
   provider: auto
-  # How often (in seconds) to refresh active leaderboard and course info holograms.
-  refresh-interval-seconds: 60
+
+  # ── Update & Refresh Settings ───────────────────────────────────────────────
+  # Configure how often and when holograms refresh their displayed data.
+  update:
+    # How often (in seconds) to periodically refresh all active holograms.
+    # Set to 0 or -1 to disable periodic automatic background refresh.
+    # (Backward-compatible alias: refresh-interval-seconds)
+    interval-seconds: 60
+
+    # Whether to automatically update linked course holograms when a player sets a new personal or course record.
+    on-record: true
+
+    # Whether to automatically update linked course holograms whenever any player finishes a course.
+    on-completion: false
+
+  # Default number of entries to show on a leaderboard hologram if not specified during creation.
+  default-limit: 10
+
+  # ── Leaderboard Hologram Format ──────────────────────────────────────────────
+  # Formatting for 'leaderboard' type holograms.
+  # Available placeholders in header/empty/footer:
+  #   {course}       -> Course display name (MiniMessage formatted)
+  #   {course_name}  -> Course plain-text display name
+  #   {course_id}    -> Course identifier
+  #   {limit}        -> Maximum number of entries displayed
+  #   {count}        -> Number of entries currently on the leaderboard
+  #   {template_id}  -> Endless/generator template ID (if applicable)
+  #   {command}      -> Recommended play command (/basicparkour join <id> or endless <id>)
+  leaderboard:
+    # Header lines displayed at the top of the hologram.
+    header:
+      - "<gold>━━━ <bold>{course}</bold> Top {limit} ━━━</gold>"
+
+    # Format for each leaderboard entry on standard (time-based) courses.
+    # Available placeholders:
+    #   {rank}      -> 1-based leaderboard position
+    #   {player}    -> Player display name
+    #   {time}      -> Formatted completion time (e.g. 01:23.456)
+    #   {time_ms}   -> Completion time in milliseconds
+    #   {uuid}      -> Player UUID
+    entry-format: "<yellow>#{rank} </yellow><white>{player}</white> <gray>—</gray> <aqua>{time}</aqua>"
+
+    # Format for each leaderboard entry on endless / generated courses (ranked by blocks cleared).
+    # Available placeholders:
+    #   {rank}      -> 1-based leaderboard position
+    #   {player}    -> Player display name
+    #   {blocks}    -> Number of blocks cleared
+    #   {time}      -> Elapsed time formatted
+    #   {time_ms}   -> Elapsed time in milliseconds
+    #   {uuid}      -> Player UUID
+    entry-format-blocks: "<yellow>#{rank} </yellow><white>{player}</white> <gray>—</gray> <green>{blocks} blocks</green> <dark_gray>({time})</dark_gray>"
+
+    # Line displayed when the course has no records yet.
+    empty: "<gray>No records yet. Be the first!</gray>"
+
+    # Footer lines displayed at the bottom for standard courses.
+    footer:
+      - "<gray>Race now: <white>/basicparkour join {course_id}</white></gray>"
+
+    # Footer lines displayed at the bottom for endless / generated courses.
+    footer-endless:
+      - "<gray>Play now: <white>/basicparkour endless {template_id}</white></gray>"
+
+    # Optional full layout override:
+    # If set, the hologram follows this exact list of lines.
+    # Use {entries} to insert the leaderboard entry lines at that position.
+    # lines:
+    #   - "<gold>━━━ <bold>{course}</bold> Top {limit} ━━━</gold>"
+    #   - "{entries}"
+    #   - "<gray>Race now: <white>{command}</white></gray>"
+
+  # ── Course Info Hologram Format ─────────────────────────────────────────────
+  # Formatting for 'course_info' type holograms.
+  # Available placeholders in header/checkpoints/record/footer:
+  #   {course}       -> Course display name (MiniMessage formatted)
+  #   {course_name}  -> Course plain-text display name
+  #   {course_id}    -> Course identifier
+  #   {checkpoints}  -> Total number of checkpoints in the course
+  #   {player}       -> Record holder's name
+  #   {time}         -> Record completion time formatted
+  #   {time_ms}      -> Record completion time in milliseconds
+  #   {blocks}       -> Record blocks cleared (for endless courses)
+  #   {template_id}  -> Endless/generator template ID (if applicable)
+  #   {command}      -> Recommended play command
+  course-info:
+    # Header lines displayed at the top.
+    header:
+      - "<gradient:#ff9a9e:#fecfef><bold>{course}</bold></gradient>"
+
+    # Checkpoint count display line (shown for standard courses with checkpoints).
+    checkpoints: "<gray>Checkpoints: <white>{checkpoints}</white></gray>"
+
+    # Record display when a standard time record exists.
+    record: "<gray>Record: <aqua>{time}</aqua> by <white>{player}</white></gray>"
+
+    # Record display when an endless block record exists.
+    record-blocks: "<gray>Record: <green>{blocks} blocks</green> <dark_gray>({time})</dark_gray> by <white>{player}</white></gray>"
+
+    # Record display when no record has been set yet.
+    record-none: "<gray>Record: <white>None</white></gray>"
+
+    # Footer lines displayed at the bottom for standard courses.
+    footer:
+      - "<green>Type <white>/basicparkour join {course_id}</white> to play!</green>"
+
+    # Footer lines displayed at the bottom for endless courses.
+    footer-endless:
+      - "<green>Type <white>/basicparkour endless {template_id}</white> to play!</green>"
+
+    # Optional full layout override:
+    # lines:
+    #   - "<gradient:#ff9a9e:#fecfef><bold>{course}</bold></gradient>"
+    #   - "{checkpoints}"
+    #   - "{record}"
+    #   - "{footer}"
+
+  # ── Static Hologram Definitions (Optional) ──────────────────────────────────
+  # Declare static holograms directly in config.yml.
+  # These are loaded alongside in-game holograms saved in holograms.yml.
+  # definitions:
+  #   spawn_leaderboard:
+  #     type: LEADERBOARD
+  #     course: easy_1
+  #     limit: 10
+  #     world: world
+  #     x: 100.5
+  #     y: 65.0
+  #     z: 200.5
+  #     yaw: 0.0
+  #     pitch: 0.0
+  #     # Optional custom lines override:
+  #     # lines:
+  #     #   - "<gold>Custom Leaderboard</gold>"
+  #     #   - "{entries}"
 
 # ─── NPC System ───────────────────────────────────────────────────────────────
 npc:
