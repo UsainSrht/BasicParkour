@@ -91,12 +91,14 @@ public final class PlayerMoveListener implements Listener {
         boolean isGenerated = course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse;
 
         if (isGenerated) {
-            // Check upcoming checkpoints in case player jumped ahead skipping intermediate blocks
-            for (int i = currentIdx + 1; i < checkpoints.size(); i++) {
-                me.usainsrht.basicparkour.api.course.Checkpoint cp = checkpoints.get(i);
-                if (cp.getTriggerRegion().overlaps(player.getBoundingBox()) || cp.getTriggerRegion().contains(to)) {
-                    sessionManager.handleCheckpointReach(player, cp);
-                    break;
+            // Check upcoming checkpoints when player successfully steps (lands on the ground) on the platform
+            if (player.isOnGround()) {
+                for (int i = currentIdx + 1; i < checkpoints.size(); i++) {
+                    me.usainsrht.basicparkour.api.course.Checkpoint cp = checkpoints.get(i);
+                    if (cp.getTriggerRegion().overlaps(player.getBoundingBox()) || cp.getTriggerRegion().contains(to)) {
+                        sessionManager.handleCheckpointReach(player, cp);
+                        break;
+                    }
                 }
             }
         } else {

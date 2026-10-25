@@ -106,15 +106,7 @@ public final class JumpToJumpAlgorithm {
         Location center = startLocation.clone();
         List<PlacedBlock> blocks = buildBlocksForShape(shape, center, world, theme, rng, 0);
 
-        Location regionMin = new Location(world,
-            center.getBlockX() - 1, center.getBlockY(), center.getBlockZ() - 1);
-        Location regionMax = new Location(world,
-            center.getBlockX() + 2, center.getBlockY() + 3, center.getBlockZ() + 2);
-
-        Location spawnLoc = new Location(world,
-            center.getBlockX() + 0.5, center.getBlockY() + 1.0, center.getBlockZ() + 0.5, initialYawDeg, 0f);
-        Checkpoint checkpoint = new CheckpointImpl(0, spawnLoc,
-            new CourseRegionImpl(regionMin, regionMax));
+        Checkpoint checkpoint = buildPlatformCheckpoint(world, 0, center, initialYawDeg, blocks);
 
         return new GeneratedPlatform(center, List.copyOf(blocks), checkpoint, 0, initialYawDeg);
     }
@@ -396,19 +388,47 @@ public final class JumpToJumpAlgorithm {
         }
 
         // ── 7. Checkpoint ──────────────────────────────────────────────────
-        Location regionMin = new Location(world,
-            center.getBlockX() - 1, center.getBlockY(), center.getBlockZ() - 1);
-        Location regionMax = new Location(world,
-            center.getBlockX() + 2, center.getBlockY() + 3, center.getBlockZ() + 2);
+        Checkpoint checkpoint = buildPlatformCheckpoint(world, platformIndex, center, outgoingYaw, blocks);
+
+        return new GeneratedPlatform(center, List.copyOf(blocks), checkpoint, platformIndex, outgoingYaw);
+    }
+
+    private static Checkpoint buildPlatformCheckpoint(
+        @Nullable World world,
+        int platformIndex,
+        @NotNull Location center,
+        float outgoingYaw,
+        @NotNull List<PlacedBlock> blocks
+    ) {
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        int platY = center.getBlockY();
+        for (PlacedBlock b : blocks) {
+            if (b.location().getBlockY() == platY) {
+                minX = Math.min(minX, b.location().getBlockX());
+                maxX = Math.max(maxX, b.location().getBlockX());
+                minZ = Math.min(minZ, b.location().getBlockZ());
+                maxZ = Math.max(maxZ, b.location().getBlockZ());
+            }
+        }
+        if (minX == Integer.MAX_VALUE) {
+            minX = center.getBlockX();
+            maxX = center.getBlockX();
+            minZ = center.getBlockZ();
+            maxZ = center.getBlockZ();
+        }
+
+        // Region tightly covers the standing volume directly above the platform surface:
+        // [minX, maxX + 1] horizontally, and [platY + 1.0, platY + 3.0] vertically.
+        Location regionMin = new Location(world, minX, platY + 1.0, minZ);
+        Location regionMax = new Location(world, maxX + 1.0, platY + 3.0, maxZ + 1.0);
 
         Location spawnLoc = new Location(world,
             center.getBlockX() + 0.5, center.getBlockY() + 1.0, center.getBlockZ() + 0.5,
             outgoingYaw, 0f);
 
-        Checkpoint checkpoint = new CheckpointImpl(platformIndex, spawnLoc,
+        return new CheckpointImpl(platformIndex, spawnLoc,
             new CourseRegionImpl(regionMin, regionMax));
-
-        return new GeneratedPlatform(center, List.copyOf(blocks), checkpoint, platformIndex, outgoingYaw);
     }
 
     // ── Platform shape generation ──────────────────────────────────────────

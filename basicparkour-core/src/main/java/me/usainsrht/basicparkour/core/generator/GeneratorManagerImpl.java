@@ -221,14 +221,11 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 initialYaw = template.fixedYaw();
             }
 
-            // Spawn walk-in: calculate first platform 2.8 blocks in front along initialYaw
-            double rad = Math.toRadians(initialYaw);
-            double dx = -Math.sin(rad);
-            double dz = Math.cos(rad);
+            // Spawn walk-in: start platform (index 0) starts directly beneath the player's feet
             startLoc = new Location(world,
-                playerLoc.getX() + dx * 2.8,
+                playerLoc.getBlockX(),
                 playerLoc.getBlockY() - 1,
-                playerLoc.getZ() + dz * 2.8);
+                playerLoc.getBlockZ());
             slotResult = new SlotAllocatorResult(-1, world.getName());
         } else {
             // MARKER mode — read from config (no world API needed)
