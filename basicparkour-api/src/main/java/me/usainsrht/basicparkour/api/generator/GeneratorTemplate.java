@@ -96,11 +96,68 @@ public record GeneratorTemplate(
               double              directionCone,
     @Nullable Float               directionYaw,
               int                 corridorWidth,
-              int                 maxHeightDeviation
+              int                 maxHeightDeviation,
+
+    // ── Protection overrides ──────────────────────────────────────────────
+    @Nullable Boolean             preventDamage,
+    @Nullable Boolean             fallDamageFailsSession
 ) {
     public GeneratorTemplate {
         platformShapes = List.copyOf(platformShapes);
         modifierOverrides = Map.copyOf(modifierOverrides);
+    }
+
+    public GeneratorTemplate(
+        @NotNull  String             id,
+        @NotNull  String             displayName,
+        @NotNull  GeneratorDifficulty difficulty,
+        @NotNull  GeneratorTheme      theme,
+        @NotNull  LengthType          lengthType,
+                  int                 fixedLength,
+        @NotNull  BlockMode           blockMode,
+                  int                 slidingWindowAhead,
+                  int                 cleanupDelaySeconds,
+        @NotNull  EntryMode           entryMode,
+        @Nullable String              dedicatedWorldName,
+                  int                 dedicatedWorldRadius,
+                  boolean             shared,
+        @Nullable Long                seed,
+        @NotNull  String              leaderboardCourseId,
+        @Nullable Float               fixedYaw,
+        @NotNull  List<String>        platformShapes,
+                  int                 minGap,
+                  int                 maxGap,
+                  int                 minHeightDelta,
+                  int                 maxHeightDelta,
+                  int                 platformMinSize,
+                  int                 platformMaxSize,
+                  double              obstacleChance,
+                  double              modifierChance,
+        @NotNull  Map<Material, String> modifierOverrides,
+        @NotNull  DieMode             dieMode,
+        @NotNull  BlockAppearAnimation appearAnimation,
+        @NotNull  SlidingWindowMode   slidingWindowMode,
+                  double              slidingWindowTimeSeconds,
+        @Nullable Location            failLocation,
+        @Nullable Location            completeLocation,
+                  double              directionCone,
+        @Nullable Float               directionYaw,
+                  int                 corridorWidth,
+                  int                 maxHeightDeviation
+    ) {
+        this(
+            id, displayName, difficulty, theme, lengthType, fixedLength,
+            blockMode, slidingWindowAhead, cleanupDelaySeconds,
+            entryMode, dedicatedWorldName, dedicatedWorldRadius, shared, seed,
+            leaderboardCourseId, fixedYaw, platformShapes,
+            minGap, maxGap, minHeightDelta, maxHeightDelta,
+            platformMinSize, platformMaxSize, obstacleChance, modifierChance,
+            modifierOverrides,
+            dieMode, appearAnimation, slidingWindowMode, slidingWindowTimeSeconds,
+            failLocation, completeLocation,
+            directionCone, directionYaw, corridorWidth, maxHeightDeviation,
+            null, null
+        );
     }
 
     public GeneratorTemplate(

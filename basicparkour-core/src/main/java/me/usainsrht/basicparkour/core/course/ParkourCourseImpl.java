@@ -40,6 +40,8 @@ public final class ParkourCourseImpl implements ParkourCourse {
     private final long timeLimitMs;
     private final Location failLocation;
     private final Location completeLocation;
+    private final Boolean preventDamage;
+    private final Boolean fallDamageFailsSession;
 
     public ParkourCourseImpl(
         @NotNull String id,
@@ -61,7 +63,7 @@ public final class ParkourCourseImpl implements ParkourCourse {
     ) {
         this(id, displayName, worldName, startRegion, endRegion, startLocations, portalRegion,
             portalTeleport, blockList, blockListMode, minY, dieMode, checkpoints, modifierOverrides,
-            rewardCommands, timeLimitMs, null, null);
+            rewardCommands, timeLimitMs, null, null, null, null);
     }
 
     public ParkourCourseImpl(
@@ -84,6 +86,33 @@ public final class ParkourCourseImpl implements ParkourCourse {
         @Nullable Location failLocation,
         @Nullable Location completeLocation
     ) {
+        this(id, displayName, worldName, startRegion, endRegion, startLocations, portalRegion,
+            portalTeleport, blockList, blockListMode, minY, dieMode, checkpoints, modifierOverrides,
+            rewardCommands, timeLimitMs, failLocation, completeLocation, null, null);
+    }
+
+    public ParkourCourseImpl(
+        @NotNull String id,
+        @NotNull Component displayName,
+        @NotNull String worldName,
+        @NotNull CourseRegion startRegion,
+        @NotNull CourseRegion endRegion,
+        @NotNull List<Location> startLocations,
+        @Nullable CourseRegion portalRegion,
+        boolean portalTeleport,
+        @NotNull Set<Material> blockList,
+        @NotNull BlockListMode blockListMode,
+        @Nullable Integer minY,
+        @NotNull DieMode dieMode,
+        @NotNull List<Checkpoint> checkpoints,
+        @NotNull Map<Material, String> modifierOverrides,
+        @NotNull List<String> rewardCommands,
+        long timeLimitMs,
+        @Nullable Location failLocation,
+        @Nullable Location completeLocation,
+        @Nullable Boolean preventDamage,
+        @Nullable Boolean fallDamageFailsSession
+    ) {
         this.id = id;
         this.displayName = displayName;
         this.worldName = worldName;
@@ -102,6 +131,8 @@ public final class ParkourCourseImpl implements ParkourCourse {
         this.timeLimitMs = timeLimitMs;
         this.failLocation = failLocation;
         this.completeLocation = completeLocation;
+        this.preventDamage = preventDamage;
+        this.fallDamageFailsSession = fallDamageFailsSession;
     }
 
     @Override @NotNull public String getId() { return id; }
@@ -122,6 +153,8 @@ public final class ParkourCourseImpl implements ParkourCourse {
     @Override public long getTimeLimitMs() { return timeLimitMs; }
     @Override @NotNull public Optional<Location> getFailLocation() { return Optional.ofNullable(failLocation); }
     @Override @NotNull public Optional<Location> getCompleteLocation() { return Optional.ofNullable(completeLocation); }
+    @Override @NotNull public Optional<Boolean> isPreventDamage() { return Optional.ofNullable(preventDamage); }
+    @Override @NotNull public Optional<Boolean> isFallDamageFailsSession() { return Optional.ofNullable(fallDamageFailsSession); }
 
     @Override
     public String toString() {

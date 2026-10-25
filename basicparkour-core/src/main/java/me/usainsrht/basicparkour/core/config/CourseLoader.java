@@ -218,11 +218,17 @@ public final class CourseLoader {
         }
         Location completeLoc = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("complete-location"));
 
+        // Protections
+        Boolean preventDamage = cfg.contains("prevent-damage") ? cfg.getBoolean("prevent-damage") : null;
+        Boolean fallDamageFails = cfg.contains("fall-damage-fails-session")
+            ? cfg.getBoolean("fall-damage-fails-session")
+            : (cfg.contains("fall-damage-fails") ? cfg.getBoolean("fall-damage-fails") : null);
+
         return new ParkourCourseImpl(id, displayName, worldName,
             startRegion, endRegion, startLocations, portalRegion, portalTeleport,
             blockList, blockListMode, minY, dieMode,
             checkpoints, modifiers, rewards, timeLimitMs,
-            failLoc, completeLoc);
+            failLoc, completeLoc, preventDamage, fallDamageFails);
     }
 
     @Nullable

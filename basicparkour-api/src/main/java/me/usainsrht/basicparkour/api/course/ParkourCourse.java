@@ -205,5 +205,27 @@ public interface ParkourCourse {
     default Optional<Location> getCompleteLocation() {
         return Optional.empty();
     }
+
+    /**
+     * Whether taking damage is prevented for players doing this course.
+     * If empty, the global configuration (protections.prevent-damage) is used.
+     *
+     * @return optional boolean override
+     */
+    @NotNull
+    default Optional<Boolean> isPreventDamage() {
+        return Optional.empty();
+    }
+
+    /**
+     * Whether taking fall damage fails the session for players doing this course.
+     * If empty, the global configuration (protections.fall-damage-fails-session) is used.
+     *
+     * @return optional boolean override
+     */
+    @NotNull
+    default Optional<Boolean> isFallDamageFailsSession() {
+        return Optional.empty();
+    }
 }
 

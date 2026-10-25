@@ -89,15 +89,17 @@ session:
 # ─── Protections (Survival Safety) ───────────────────────────────────────────
 # Crucial for SMP, Skyblock, and Factions so players do not die, lose items, or grief courses.
 protections:
-  # Prevents fall damage while in an active parkour session.
+  # Prevents all damage (PvP, mobs, fall damage, fire, lava, drowning, suffocation, lightning) while doing parkour.
+  # Handled safely via events (EntityDamageEvent) rather than the invulnerability tag so game mechanics remain responsive.
+  prevent-damage: true
+
+  # Prevents fall damage specifically while in an active parkour session.
+  # If omitted or not explicitly configured, falls back to the value of prevent-damage above.
   prevent-fall-damage: true
 
   # When true, taking fall damage (e.g. falling off a high jump onto the ground)
-  # instantly fails and respawns the player at their last checkpoint with 0 damage taken.
+  # instantly fails and respawns the player at their last checkpoint (with 0 damage taken if prevent-damage is true).
   fall-damage-fails-session: true
-
-  # Prevents all other damage (PvP, mobs, fire, lava, drowning, suffocation, lightning) while doing parkour.
-  prevent-damage: true
 
   # Prevents players from attacking mobs or other players during a session.
   prevent-pvp: true

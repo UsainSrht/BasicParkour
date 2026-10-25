@@ -78,15 +78,22 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
                     new AxisAngle4f()
                 ));
 
-                // When slide finishes, remove display entity and place real block
+                // When slide finishes, place real block first, then remove display entity
+                // 2 ticks later to eliminate the 1-frame air flicker while the client chunk mesher updates.
                 scheduler.runAtLocationLater(targetLoc, () -> {
-                    instance.activeDisplays.remove(display);
-                    try { display.remove(); } catch (Exception ignored) {}
-                    if (instance.isActive()) {
-                        instance.placeBlock(pb);
-                        onComplete.run();
+                    if (!instance.isActive()) {
+                        instance.activeDisplays.remove(display);
+                        try { display.remove(); } catch (Exception ignored) {}
+                        return;
                     }
-                }, SLIDE_TICKS + 1);
+                    instance.placeBlock(pb);
+                    onComplete.run();
+
+                    scheduler.runAtLocationLater(targetLoc, () -> {
+                        instance.activeDisplays.remove(display);
+                        try { display.remove(); } catch (Exception ignored) {}
+                    }, 2L);
+                }, SLIDE_TICKS);
             }, 1L);
         } catch (Throwable t) {
             // Fallback to instant placement if entity spawn fails

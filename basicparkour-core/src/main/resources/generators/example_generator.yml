@@ -70,6 +70,16 @@ die-mode: FAIL_DIE
 # Format: "world,x,y,z,yaw,pitch"
 # fail-location: "world,100.5,64.0,200.5,90.0,0.0"
 
+# ── Damage Protections ────────────────────────────────────────────────────────
+# Whether players doing this parkour can take damage (handled via events).
+# When true, all damage is completely prevented.
+# If omitted, defaults to global config (protections.prevent-damage).
+prevent-damage: true
+
+# When true, taking fall damage instantly fails the session (with 0 damage taken).
+# If omitted, defaults to global config (protections.fall-damage-fails-session).
+fall-damage-fails-session: true
+
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 # How many seconds to wait after the session ends before removing placed blocks.
 cleanup-delay-seconds: 30

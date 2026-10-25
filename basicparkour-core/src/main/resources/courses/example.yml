@@ -148,6 +148,16 @@ min-y: 20
 # FAIL_DIE: Teleport back to where they originally joined, session ends.
 die-mode: RESTART_DIE
 
+# ─── Protections ──────────────────────────────────────────────────────────────
+# Whether players doing this course can take damage (handled via events).
+# When true, all damage is completely prevented.
+# If omitted, defaults to global config (protections.prevent-damage).
+prevent-damage: true
+
+# When true, taking fall damage instantly fails the session (with 0 damage taken).
+# If omitted, defaults to global config (protections.fall-damage-fails-session).
+fall-damage-fails-session: true
+
 # ─── Time limit ───────────────────────────────────────────────────────────────
 # Optional. Remove or set to -1 to disable.
 # time-limit-seconds: 300

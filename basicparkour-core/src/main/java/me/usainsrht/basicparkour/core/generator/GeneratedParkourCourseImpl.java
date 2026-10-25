@@ -96,6 +96,16 @@ public final class GeneratedParkourCourseImpl implements GeneratedParkourCourse 
         return List.of(); // generated runs don't have reward commands
     }
 
+    @Override @NotNull
+    public Optional<Boolean> isPreventDamage() {
+        return Optional.ofNullable(template.preventDamage());
+    }
+
+    @Override @NotNull
+    public Optional<Boolean> isFallDamageFailsSession() {
+        return Optional.ofNullable(template.fallDamageFailsSession());
+    }
+
     // ── GeneratedParkourCourse ─────────────────────────────────────────────
 
     @Override public long getSeed()              { return seed; }

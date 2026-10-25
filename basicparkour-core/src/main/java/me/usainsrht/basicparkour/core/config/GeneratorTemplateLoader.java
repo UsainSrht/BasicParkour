@@ -256,6 +256,12 @@ public final class GeneratorTemplateLoader {
         int corridorWidth = cfg.getInt("corridor-width", cfg.getInt("max-corridor-width", 0));
         int maxHeightDeviation = cfg.getInt("max-height-deviation", cfg.getInt("height-range", 15));
 
+        // ── Protection overrides ──────────────────────────────────────────────
+        Boolean preventDamage = cfg.contains("prevent-damage") ? cfg.getBoolean("prevent-damage") : null;
+        Boolean fallDamageFails = cfg.contains("fall-damage-fails-session")
+            ? cfg.getBoolean("fall-damage-fails-session")
+            : (cfg.contains("fall-damage-fails") ? cfg.getBoolean("fall-damage-fails") : null);
+
         return new GeneratorTemplate(
             id, displayName, difficulty, theme, lengthType, fixedLength,
             blockMode, slidingWindowAhead, cleanupDelay,
@@ -266,7 +272,8 @@ public final class GeneratorTemplateLoader {
             modifiers,
             dieMode, appearAnimation, slidingMode, slidingWindowTime,
             failLocation, completeLocation,
-            directionCone, directionYaw, corridorWidth, maxHeightDeviation
+            directionCone, directionYaw, corridorWidth, maxHeightDeviation,
+            preventDamage, fallDamageFails
         );
     }
 

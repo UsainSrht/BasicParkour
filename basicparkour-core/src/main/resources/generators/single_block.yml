@@ -32,6 +32,16 @@ sliding-window-time-seconds: 12.0
 appear-animation: GROW
 die-mode: FAIL_DIE
 
+# ── Damage Protections ────────────────────────────────────────────────────────
+# Whether players doing this parkour can take damage (handled via events).
+# When true, all damage is completely prevented.
+# If omitted, defaults to global config (protections.prevent-damage).
+prevent-damage: true
+
+# When true, taking fall damage instantly fails the session (with 0 damage taken).
+# If omitted, defaults to global config (protections.fall-damage-fails-session).
+fall-damage-fails-session: true
+
 cleanup-delay-seconds: 30
 
 entry-mode: DEDICATED_WORLD
