@@ -479,6 +479,7 @@ public final class BasicParkourCommand {
                                         .then(Commands.argument("courseId", StringArgumentType.word())
                                                 .suggests((ctx, builder) -> {
                                                     BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                                                    BasicParkourAPI.get().getGeneratorManager().getTemplates().forEach(t -> builder.suggest(t.leaderboardCourseId()));
                                                     return builder.buildFuture();
                                                 })
                                                 .executes(ctx -> {

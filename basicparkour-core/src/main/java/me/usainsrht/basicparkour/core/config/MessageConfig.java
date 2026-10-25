@@ -21,6 +21,7 @@ public final class MessageConfig {
     private YamlMessage checkpointReach;
     private YamlMessage courseComplete;
     private YamlMessage sessionFail;
+    private YamlMessage sessionFailEndless;
     private YamlMessage personalBest;
     private YamlMessage personalBestEndless;
     private YamlMessage timerDisplay;
@@ -74,6 +75,8 @@ public final class MessageConfig {
             "<gold><bold>🏁 Course complete!</bold></gold> <yellow>Time: <white><time></white></yellow>");
         sessionFail = getMessage("session-fail",
             "<red>✗ Failed! <gray>Respawning at last checkpoint…</gray></red>");
+        sessionFailEndless = getMessage("session-fail-endless",
+            "<red>✗ Run ended! <gray>Blocks: <green><blocks></green> <dark_gray>|</dark_gray> Time: <white><time></white></gray></red>");
         personalBest = getMessage("personal-best",
             "<aqua>🏆 <bold>New personal best!</bold> <white><time></white></aqua>");
         personalBestEndless = getMessage("personal-best-endless",
@@ -130,6 +133,7 @@ public final class MessageConfig {
     public @NotNull YamlMessage getCheckpointReach() { return checkpointReach; }
     public @NotNull YamlMessage getCourseComplete() { return courseComplete; }
     public @NotNull YamlMessage getSessionFail() { return sessionFail; }
+    public @NotNull YamlMessage getSessionFailEndless() { return sessionFailEndless; }
     public @NotNull YamlMessage getPersonalBest() { return personalBest; }
     public @NotNull YamlMessage getPersonalBestEndless() { return personalBestEndless; }
     public @NotNull YamlMessage getTimerDisplay() { return timerDisplay; }

@@ -169,7 +169,18 @@ public final class HologramManager {
 
         Optional<ParkourCourse> courseOpt = BasicParkourAPI.get().getCourseRegistry().getCourse(data.getCourseId());
         String courseName = courseOpt.map(c -> PlainTextComponentSerializer.plainText().serialize(c.getDisplayName()))
-                .orElse(data.getCourseId());
+                .orElseGet(() -> {
+                    if (plugin.getGeneratorManager() != null) {
+                        for (var tpl : plugin.getGeneratorManager().getTemplates()) {
+                            if (tpl.leaderboardCourseId().equalsIgnoreCase(data.getCourseId()) || tpl.id().equalsIgnoreCase(data.getCourseId())) {
+                                return PlainTextComponentSerializer.plainText().serialize(
+                                    net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(tpl.displayName())
+                                );
+                            }
+                        }
+                    }
+                    return data.getCourseId();
+                });
 
         if (data.getType() == HologramType.LEADERBOARD) {
             plugin.getRepository().getLeaderboard(data.getCourseId(), data.getLimit())
@@ -190,7 +201,18 @@ public final class HologramManager {
                                 }
                             }
                         }
-                        lines.add("<gray>Race now: <white>/basicparkour join " + data.getCourseId() + "</white></gray>");
+                        boolean isGen = plugin.getGeneratorManager() != null && plugin.getGeneratorManager().getTemplates().stream()
+                            .anyMatch(t -> t.leaderboardCourseId().equalsIgnoreCase(data.getCourseId()) || t.id().equalsIgnoreCase(data.getCourseId()));
+                        if (isGen) {
+                            String templateId = plugin.getGeneratorManager().getTemplates().stream()
+                                .filter(t -> t.leaderboardCourseId().equalsIgnoreCase(data.getCourseId()) || t.id().equalsIgnoreCase(data.getCourseId()))
+                                .map(me.usainsrht.basicparkour.api.generator.GeneratorTemplate::id)
+                                .findFirst()
+                                .orElse(data.getCourseId());
+                            lines.add("<gray>Play now: <white>/basicparkour endless " + templateId + "</white></gray>");
+                        } else {
+                            lines.add("<gray>Race now: <white>/basicparkour join " + data.getCourseId() + "</white></gray>");
+                        }
 
                         plugin.getScheduler().runGlobal(() -> {
                             if (activeProvider != null) {

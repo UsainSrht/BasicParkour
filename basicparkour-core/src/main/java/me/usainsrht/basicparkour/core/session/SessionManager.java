@@ -536,12 +536,17 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             dieMode = me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE;
         }
 
-        if (session.getCourse() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse gpc
-                && gpc.getTemplate().lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE) {
+        me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse gpc =
+            session.getCourse() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse g ? g : null;
+        boolean isEndless = gpc != null && gpc.getTemplate().lengthType() == me.usainsrht.basicparkour.api.generator.LengthType.INFINITE;
+        int endlessBlocks = Math.max(0, session.getCurrentCheckpointIndex());
+        long endlessElapsed = session.getElapsedMillis();
+
+        if (isEndless) {
             // When endless run ends permanently on FAIL_DIE, record their personal best
             if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE) {
-                int blocks = session.getCurrentCheckpointIndex();
-                long elapsed = session.getElapsedMillis();
+                int blocks = endlessBlocks;
+                long elapsed = endlessElapsed;
                 String leaderboardCourseId = gpc.getTemplate().leaderboardCourseId();
                 if (blocks > 0) {
                     PlayerRecord record = PlayerRecord.of(
@@ -600,8 +605,16 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                 clearInternalTeleport(player.getUniqueId());
 
                 // Show fail message via YamlMessage
-                messages.send(messages.getSessionFail(), player,
-                    Placeholder.component("course", session.getCourse().getDisplayName()));
+                if (isEndless) {
+                    messages.send(messages.getSessionFailEndless(), player,
+                        Placeholder.component("course", session.getCourse().getDisplayName()),
+                        Placeholder.parsed("blocks", String.valueOf(endlessBlocks)),
+                        Placeholder.parsed("score", String.valueOf(endlessBlocks)),
+                        Placeholder.parsed("time", TimerFormatter.format(endlessElapsed)));
+                } else {
+                    messages.send(messages.getSessionFail(), player,
+                        Placeholder.component("course", session.getCourse().getDisplayName()));
+                }
 
                 if (finalDieMode == me.usainsrht.basicparkour.api.course.DieMode.RESTART_DIE) {
                     // Restart a fresh session on the same course, preserving startTime and checkpoints

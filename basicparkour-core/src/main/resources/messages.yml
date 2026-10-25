@@ -44,6 +44,11 @@ messages:
     actionbar: "<red>✗ Failed! <gray>Respawning at last checkpoint…</gray></red>"
     sound: "block.note_block.bass,1.0,0.6"
 
+  # Displayed when an endless/generated parkour session is failed
+  session-fail-endless:
+    actionbar: "<red>✗ Run ended! <gray>Blocks: <green><blocks></green> <dark_gray>|</dark_gray> Time: <white><time></white></gray></red>"
+    sound: "block.note_block.bass,1.0,0.6"
+
   # Displayed in addition to course-complete when a personal best is set
   personal-best:
     chat:
