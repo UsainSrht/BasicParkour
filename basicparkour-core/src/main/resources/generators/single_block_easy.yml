@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# BasicParkour — Single Block Endless (Easy Preset)
+# ──────────────────────────────────────────────────────────────────────────────
+# Relaxed single block parkour for beginners and casual runners.
+# Features gentle gaps (1-2 air blocks), soft curves, no step-ups, and generous time.
+
+id: "single_block_easy"
+display-name: "<gradient:#a8ff78:#78ffd6>Single Block — Easy</gradient>"
+
+difficulty: EASY
+
+theme:
+  name: "Spring"
+  platform-materials:
+    - BIRCH_PLANKS
+    - OAK_PLANKS
+    - LIME_CONCRETE
+    - GREEN_CONCRETE
+  accent-materials:
+    - STRIPPED_BIRCH_LOG
+  obstacle-materials: []
+
+length-type: INFINITE
+fixed-length: 30
+
+block-mode: SLIDING_WINDOW
+sliding-window-ahead: 6
+sliding-window-mode: DUAL
+sliding-window-time-seconds: 12.0
+
+appear-animation: GROW
+die-mode: FAIL_DIE
+
+prevent-damage: true
+fall-damage-fails-session: true
+cleanup-delay-seconds: 0
+
+entry-mode: WALK_IN
+dedicated-world: "world"
+dedicated-world-radius: 20000
+
+shared: false
+leaderboard-course-id: "single_block_easy"
+
+platform-shapes:
+  - "1x1"
+
+direction-cone: 90.0
+corridor-width: 0
+max-height-deviation: 15

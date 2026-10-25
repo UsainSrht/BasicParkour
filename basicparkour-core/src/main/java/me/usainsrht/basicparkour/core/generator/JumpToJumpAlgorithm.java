@@ -1,6 +1,7 @@
 package me.usainsrht.basicparkour.core.generator;
 
 import me.usainsrht.basicparkour.api.course.Checkpoint;
+import me.usainsrht.basicparkour.api.generator.GeneratorDifficulty;
 import me.usainsrht.basicparkour.api.generator.GeneratorTheme;
 import me.usainsrht.basicparkour.api.generator.GeneratorTemplate;
 import me.usainsrht.basicparkour.core.course.CheckpointImpl;
@@ -161,8 +162,65 @@ public final class JumpToJumpAlgorithm {
     }
 
     /**
+     * Computes the maximum physically jumpable horizontal Euclidean distance (center-to-center)
+     * in vanilla Minecraft without status effects for a given height delta and turning angle.
+     *
+     * <p>Vanilla physics constants:
+     * <ul>
+     *   <li>+1 height: player has ~8 ticks before falling below y=1.0. Max displacement is ~2.8m,
+     *       allowing at most center distance 4.0 (3 air blocks) in a straight line.</li>
+     *   <li>Flat jump: player has ~12 ticks. Max displacement is ~3.8m,
+     *       allowing center distance 5.0 (the classic 4-block jump) in a straight line.</li>
+     *   <li>Downward jumps: player has increased air time (14-18 ticks), allowing center distances
+     *       up to 5.4 (-1), 5.8 (-2), and 6.2 (-3) in straight lines.</li>
+     *   <li>Turning angles redirect forward sprint momentum; max jumpable distance decreases
+     *       progressively as turn angle widens.</li>
+     * </ul>
+     */
+    public static double getMaxAllowedDistance(int heightDelta, double absTurnDeg) {
+        if (heightDelta >= 1) {
+            if (absTurnDeg <= 12.0) return 4.05; // 3 air blocks (straight +1 sprint jump)
+            if (absTurnDeg <= 25.0) return 3.35; // 2 air blocks
+            if (absTurnDeg <= 40.0) return 2.75; // 1-2 air blocks
+            return 2.20; // 1 air block
+        } else if (heightDelta == 0) {
+            if (absTurnDeg <= 15.0) return 5.08; // 4 air blocks (classic 4-block jump!)
+            if (absTurnDeg <= 30.0) return 4.35; // 3 air blocks
+            if (absTurnDeg <= 45.0) return 3.70; // 2-3 air blocks
+            if (absTurnDeg <= 65.0) return 3.10; // 2 air blocks
+            return 2.45; // 1 air block (sharp corner jump)
+        } else if (heightDelta == -1) {
+            if (absTurnDeg <= 15.0) return 5.45;
+            if (absTurnDeg <= 30.0) return 4.70;
+            if (absTurnDeg <= 45.0) return 4.10;
+            if (absTurnDeg <= 65.0) return 3.40;
+            return 2.60;
+        } else if (heightDelta == -2) {
+            if (absTurnDeg <= 15.0) return 5.85;
+            if (absTurnDeg <= 30.0) return 5.10;
+            if (absTurnDeg <= 45.0) return 4.30;
+            if (absTurnDeg <= 65.0) return 3.60;
+            return 2.80;
+        } else {
+            // heightDelta <= -3
+            if (absTurnDeg <= 15.0) return 6.20;
+            if (absTurnDeg <= 30.0) return 5.30;
+            if (absTurnDeg <= 45.0) return 4.50;
+            if (absTurnDeg <= 65.0) return 3.70;
+            return 2.90;
+        }
+    }
+
+    /**
+     * Minimum safe horizontal Euclidean distance (center-to-center) to prevent platform collisions.
+     */
+    public static double getMinAllowedDistance(int heightDelta) {
+        return heightDelta == 0 ? 2.0 : 1.8;
+    }
+
+    /**
      * Generates a single subsequent platform, chained from {@code lastCenter} with directional cone,
-     * optional corridor boundary, height tethering, and overlap/collision avoidance.
+     * optional corridor boundary, height tethering, overlap/collision avoidance, and full physics validation.
      *
      * @param template      generator template
      * @param world         the world (used only to construct Locations)
@@ -188,15 +246,16 @@ public final class JumpToJumpAlgorithm {
         @NotNull Random rng
     ) {
         GeneratorTheme theme = template.theme();
+        GeneratorDifficulty difficulty = template.difficulty();
 
-        // ── 1. Platform shape ──────────────────────────────────────────────
+        // ── 1. Platform shape (weighted by difficulty if choices are available) ───
         List<String> shapes = template.resolvedPlatformShapes();
-        String shape = shapes.get(rng.nextInt(shapes.size()));
+        String shape = selectShapeForDifficulty(shapes, difficulty, rng);
         boolean isOneBlock = isSingleBlockShape(shape);
 
-        // ── 2. Height delta (clamped strictly to vanilla jump physics + optional tethering) ─────
-        // In vanilla Minecraft, players can jump at most 1.25 blocks up. Delta > 1 is impossible.
-        int minDelta = Math.max(-2, template.resolvedMinHeightDelta());
+        // ── 2. Height delta selection (clamped strictly to vanilla physics + tethering) ───
+        // In vanilla Minecraft, maximum jump height is 1.25 blocks (+1 elevation). Delta > 1 is impossible.
+        int minDelta = Math.max(-3, template.resolvedMinHeightDelta());
         int maxDelta = Math.min(1, template.resolvedMaxHeightDelta());
         if (minDelta > maxDelta) minDelta = maxDelta;
 
@@ -211,137 +270,163 @@ public final class JumpToJumpAlgorithm {
                 maxDelta = Math.max(minDelta, maxDelta);
             }
         }
-        int heightDelta = minDelta + rng.nextInt(Math.max(1, maxDelta - minDelta + 1));
 
-        // ── 3. Maximum distance and heading turn constraints ────────────────
-        double maxDist;
-        double maxSpreadDeg;
-        if (heightDelta == 1) {
-            // Jumping up 1 block: max horizontal jump in vanilla is 3.0 blocks
-            maxDist = 3.0;
-            maxSpreadDeg = 35.0;
-        } else if (heightDelta == 0) {
-            // Flat jump: 4.0 blocks is the vanilla limit
-            maxDist = 4.0;
-            maxSpreadDeg = 45.0;
-        } else {
-            // Jumping down: player has more clearance
-            maxDist = 4.2;
-            maxSpreadDeg = 50.0;
-        }
+        int heightDelta = selectHeightDelta(minDelta, maxDelta, difficulty, rng);
 
+        // ── 3. Gap boundaries based on height delta & difficulty ─────────────
         int minGap = Math.max(2, template.resolvedMinGap());
-        int maxGap = Math.min((int) maxDist, Math.max(minGap, template.resolvedMaxGap()));
+        int maxGap = Math.max(minGap, template.resolvedMaxGap());
 
-        if (maxGap >= 4 || isOneBlock) {
-            maxSpreadDeg = Math.min(maxSpreadDeg, 30.0);
+        // Vanilla physics limit: +1 jump CANNOT exceed gap 4 (3 air blocks)
+        if (heightDelta >= 1) {
+            maxGap = Math.min(maxGap, 4);
+        } else if (heightDelta <= -2 && (difficulty == GeneratorDifficulty.EXPERT || maxGap >= 5)) {
+            // Downward jumps have increased clearance; expert drops can extend to gap 6
+            maxGap = Math.min(maxGap + (heightDelta <= -3 ? 2 : 1), 6);
         }
+        if (minGap > maxGap) minGap = maxGap;
 
         // ── 3b. Directional Cone & Corridor constraints ───────────────────────
         double directionCone = template.resolvedDirectionCone();
         float effectiveBaseYaw = template.resolvedDirectionYaw(baseYawDeg);
+        double baseMaxTurn = template.resolvedMaxTurnAngle();
 
-        double minTurn = -maxSpreadDeg;
-        double maxTurn = maxSpreadDeg;
-
-        if (directionCone < 360.0) {
-            double halfCone = Math.max(0.0, directionCone / 2.0);
-            float currentDeltaFromBase = normalizeDegrees(lastYawDeg - effectiveBaseYaw);
-
-            minTurn = Math.max(-maxSpreadDeg, -halfCone - currentDeltaFromBase);
-            maxTurn = Math.min(maxSpreadDeg, halfCone - currentDeltaFromBase);
-
-            if (minTurn > maxTurn) {
-                // If last yaw was outside cone, steer directly back towards baseYaw
-                if (currentDeltaFromBase > 0) {
-                    minTurn = -maxSpreadDeg;
-                    maxTurn = Math.max(-maxSpreadDeg, -halfCone - currentDeltaFromBase);
-                } else {
-                    maxTurn = maxSpreadDeg;
-                    minTurn = Math.min(maxSpreadDeg, halfCone - currentDeltaFromBase);
-                }
-                if (minTurn > maxTurn) {
-                    double steer = -Math.signum(currentDeltaFromBase) * maxSpreadDeg;
-                    minTurn = steer;
-                    maxTurn = steer;
-                }
-            }
-        }
-
-        // Optional lateral corridor constraint
-        int corridorWidth = template.resolvedCorridorWidth();
-        if (corridorWidth > 0 && originCenter != null) {
-            double halfCorridor = corridorWidth / 2.0;
-            double rad = Math.toRadians(effectiveBaseYaw);
-            double fx = -Math.sin(rad);
-            double fz = Math.cos(rad);
-
-            double dxOrigin = lastCenter.getX() - originCenter.getX();
-            double dzOrigin = lastCenter.getZ() - originCenter.getZ();
-            double lateralOffset = fz * dxOrigin - fx * dzOrigin;
-
-            float currentDeltaFromBase = normalizeDegrees(lastYawDeg - effectiveBaseYaw);
-
-            if (lateralOffset > halfCorridor * 0.7) {
-                // Drifting to positive lateral offset -> force relative yaw >= 0 to steer back
-                minTurn = Math.max(minTurn, -currentDeltaFromBase);
-            } else if (lateralOffset < -halfCorridor * 0.7) {
-                // Drifting to negative lateral offset -> force relative yaw <= 0 to steer back
-                maxTurn = Math.min(maxTurn, -currentDeltaFromBase);
-            }
-            if (minTurn > maxTurn) {
-                double mid = (minTurn + maxTurn) / 2.0;
-                minTurn = mid;
-                maxTurn = mid;
-            }
-        }
-
-        // ── 4. Compute next centre with physical distance & overlap verification ─
+        // ── 4. Candidate generation with physics feasibility & overlap verification ─
         Location center = null;
         float outgoingYaw = lastYawDeg;
         int attempts = 0;
-        int maxAttempts = (recentCenters != null && !recentCenters.isEmpty()) ? 10 : 1;
+        int maxAttempts = (recentCenters != null && !recentCenters.isEmpty()) ? 12 : 1;
 
         while (attempts < maxAttempts) {
             attempts++;
-            int gap = minGap + rng.nextInt(Math.max(1, maxGap - minGap + 1));
-            double currentMinTurn = minTurn;
-            double currentMaxTurn = maxTurn;
 
-            if (gap >= 4 || (isOneBlock && gap >= 3)) {
-                // Tighter turns on max sprint jumps
-                double clampedMin = Math.max(currentMinTurn, -25.0);
-                double clampedMax = Math.min(currentMaxTurn, 25.0);
-                if (clampedMin <= clampedMax) {
-                    currentMinTurn = clampedMin;
-                    currentMaxTurn = clampedMax;
+            // Target gap tailored to difficulty distribution
+            int targetGap = selectGapForDifficulty(minGap, maxGap, heightDelta, difficulty, rng);
+
+            // Turn angle spread is constrained by jump distance and verticality to ensure jumpability
+            double allowedSpread = baseMaxTurn;
+            if (targetGap >= 5) {
+                // Max sprint jumps (e.g. 4-block flat jump) require straight-line sprint momentum
+                allowedSpread = Math.min(allowedSpread, 12.0);
+            } else if (targetGap == 4 && heightDelta >= 1) {
+                // +1 jump with 3 air blocks requires straight trajectory
+                allowedSpread = Math.min(allowedSpread, 10.0);
+            } else if (targetGap == 4) {
+                // 3 air blocks flat
+                allowedSpread = Math.min(allowedSpread, 25.0);
+            } else if (heightDelta >= 1) {
+                allowedSpread = Math.min(allowedSpread, 35.0);
+            }
+
+            double minTurn = -allowedSpread;
+            double maxTurn = allowedSpread;
+
+            if (directionCone < 360.0) {
+                double halfCone = Math.max(0.0, directionCone / 2.0);
+                float currentDeltaFromBase = normalizeDegrees(lastYawDeg - effectiveBaseYaw);
+
+                minTurn = Math.max(-allowedSpread, -halfCone - currentDeltaFromBase);
+                maxTurn = Math.min(allowedSpread, halfCone - currentDeltaFromBase);
+
+                if (minTurn > maxTurn) {
+                    if (currentDeltaFromBase > 0) {
+                        minTurn = -allowedSpread;
+                        maxTurn = Math.max(-allowedSpread, -halfCone - currentDeltaFromBase);
+                    } else {
+                        maxTurn = allowedSpread;
+                        minTurn = Math.min(allowedSpread, halfCone - currentDeltaFromBase);
+                    }
+                    if (minTurn > maxTurn) {
+                        double steer = -Math.signum(currentDeltaFromBase) * allowedSpread;
+                        minTurn = steer;
+                        maxTurn = steer;
+                    }
                 }
             }
 
-            double turnDelta = (currentMinTurn >= currentMaxTurn)
-                ? currentMinTurn
-                : currentMinTurn + rng.nextDouble() * (currentMaxTurn - currentMinTurn);
+            // Lateral corridor constraint
+            int corridorWidth = template.resolvedCorridorWidth();
+            if (corridorWidth > 0 && originCenter != null) {
+                double halfCorridor = corridorWidth / 2.0;
+                double rad = Math.toRadians(effectiveBaseYaw);
+                double fx = -Math.sin(rad);
+                double fz = Math.cos(rad);
+
+                double dxOrigin = lastCenter.getX() - originCenter.getX();
+                double dzOrigin = lastCenter.getZ() - originCenter.getZ();
+                double lateralOffset = fz * dxOrigin - fx * dzOrigin;
+                float currentDeltaFromBase = normalizeDegrees(lastYawDeg - effectiveBaseYaw);
+
+                if (lateralOffset > halfCorridor * 0.7) {
+                    minTurn = Math.max(minTurn, -currentDeltaFromBase);
+                } else if (lateralOffset < -halfCorridor * 0.7) {
+                    maxTurn = Math.min(maxTurn, -currentDeltaFromBase);
+                }
+                if (minTurn > maxTurn) {
+                    double mid = (minTurn + maxTurn) / 2.0;
+                    minTurn = mid;
+                    maxTurn = mid;
+                }
+            }
+
+            // Turn angle sampling with rhythm awareness
+            double turnDelta;
+            if (minTurn >= maxTurn) {
+                turnDelta = minTurn;
+            } else {
+                turnDelta = sampleTurnDelta(minTurn, maxTurn, difficulty, rng);
+            }
 
             float candYaw = normalizeDegrees(lastYawDeg + (float) turnDelta);
             double headingRad = Math.toRadians(-candYaw);
 
-            double dx = gap * Math.sin(headingRad);
-            double dz = gap * Math.cos(headingRad);
+            double dx = targetGap * Math.sin(headingRad);
+            double dz = targetGap * Math.cos(headingRad);
 
             int newX = (int) Math.round(lastCenter.getX() + dx);
             int newY = lastCenter.getBlockY() + heightDelta;
             int newZ = (int) Math.round(lastCenter.getZ() + dz);
 
-            // Ensure resulting distance is physically jumpable
+            // ── Enforce strict vanilla jump physics limits ───────────────────
             double actualDist = Math.hypot(newX - lastCenter.getX(), newZ - lastCenter.getZ());
-            if (actualDist > maxDist && actualDist > 0.001) {
-                double scale = (maxDist - 0.15) / actualDist;
+            double maxAllowed = getMaxAllowedDistance(heightDelta, Math.abs(turnDelta));
+            double minAllowed = getMinAllowedDistance(heightDelta);
+
+            if (actualDist > maxAllowed && actualDist > 0.001) {
+                double scale = (maxAllowed - 0.03) / actualDist;
                 newX = (int) Math.round(lastCenter.getX() + (newX - lastCenter.getX()) * scale);
                 newZ = (int) Math.round(lastCenter.getZ() + (newZ - lastCenter.getZ()) * scale);
-            } else if (actualDist < 2.0 && actualDist > 0.001) {
-                double scale = 2.0 / actualDist;
+                actualDist = Math.hypot(newX - lastCenter.getX(), newZ - lastCenter.getZ());
+
+                while (actualDist > maxAllowed) {
+                    int diffX = newX - lastCenter.getBlockX();
+                    int diffZ = newZ - lastCenter.getBlockZ();
+                    if (Math.abs(diffX) >= Math.abs(diffZ) && Math.abs(diffX) > 0) {
+                        newX -= Integer.signum(diffX);
+                    } else if (Math.abs(diffZ) > 0) {
+                        newZ -= Integer.signum(diffZ);
+                    } else {
+                        break;
+                    }
+                    actualDist = Math.hypot(newX - lastCenter.getX(), newZ - lastCenter.getZ());
+                }
+            }
+
+            if (actualDist < minAllowed && actualDist > 0.001) {
+                double scale = minAllowed / actualDist;
                 newX = (int) Math.round(lastCenter.getX() + (newX - lastCenter.getX()) * scale);
                 newZ = (int) Math.round(lastCenter.getZ() + (newZ - lastCenter.getZ()) * scale);
+            }
+
+            // Verify forward movement when constrained by a directional cone (< 180 degrees)
+            if (directionCone <= 180.0) {
+                double radBase = Math.toRadians(-effectiveBaseYaw);
+                double fwdX = Math.sin(radBase);
+                double fwdZ = Math.cos(radBase);
+                double stepFwd = (newX - lastCenter.getX()) * fwdX + (newZ - lastCenter.getZ()) * fwdZ;
+                if (stepFwd <= 0.05 && attempts < maxAttempts) {
+                    continue; // Ensure positive forward progress along base direction
+                }
             }
 
             Location candCenter = new Location(world, newX, newY, newZ);
@@ -359,7 +444,7 @@ public final class JumpToJumpAlgorithm {
                     }
                 }
                 if (collides && attempts < maxAttempts) {
-                    continue; // retry another angle/gap
+                    continue;
                 }
             }
 
@@ -369,28 +454,165 @@ public final class JumpToJumpAlgorithm {
         }
 
         if (center == null) {
-            center = new Location(world, lastCenter.getX(), lastCenter.getY(), lastCenter.getZ() + 3);
+            double radBase = Math.toRadians(-effectiveBaseYaw);
+            int safeStepX = (int) Math.round(3.0 * Math.sin(radBase));
+            int safeStepZ = (int) Math.round(3.0 * Math.cos(radBase));
+            center = new Location(world, lastCenter.getX() + safeStepX, lastCenter.getY(), lastCenter.getZ() + safeStepZ);
+            outgoingYaw = effectiveBaseYaw;
         }
 
         // ── 5. Build platform blocks ───────────────────────────────────────
         List<PlacedBlock> blocks = new ArrayList<>(buildBlocksForShape(shape, center, world, theme, rng, platformIndex));
 
-        // ── 6. Obstacle block on top (never on 1x1 landing blocks) ─────────
-        if (!isOneBlock && !theme.obstacleMaterials().isEmpty()
-                && rng.nextDouble() < template.resolvedObstacleChance()) {
-            // Place obstacle at perimeter edge (not center) so landing area is clear
-            int ox = rng.nextBoolean() ? 1 : -1;
-            int oz = rng.nextBoolean() ? 1 : -1;
-            Location obstacleLoc = new Location(world,
-                center.getBlockX() + ox, center.getBlockY() + 1, center.getBlockZ() + oz);
-            Material obstacleMat = pickFrom(theme.obstacleMaterials(), rng);
-            blocks.add(new PlacedBlock(obstacleLoc, obstacleMat, platformIndex));
+        // ── 6. Obstacles (perimeter blocks or head-hitters) ─────────────────
+        if (!theme.obstacleMaterials().isEmpty() && rng.nextDouble() < template.resolvedObstacleChance()) {
+            if (!isOneBlock) {
+                // Multi-block platform: place obstacle on perimeter edge
+                int ox = rng.nextBoolean() ? 1 : -1;
+                int oz = rng.nextBoolean() ? 1 : -1;
+                Location obstacleLoc = new Location(world,
+                    center.getBlockX() + ox, center.getBlockY() + 1, center.getBlockZ() + oz);
+                Material obstacleMat = pickFrom(theme.obstacleMaterials(), rng);
+                blocks.add(new PlacedBlock(obstacleLoc, obstacleMat, platformIndex));
+            } else if (difficulty == GeneratorDifficulty.HARD || difficulty == GeneratorDifficulty.EXPERT) {
+                // Single 1x1 block in Hard/Expert: optional head-hitter ceiling obstacle 2 blocks above
+                if (heightDelta <= 0 && rng.nextDouble() < 0.35) {
+                    Location ceilingLoc = new Location(world,
+                        center.getBlockX(), center.getBlockY() + 2, center.getBlockZ());
+                    Material obstacleMat = pickFrom(theme.obstacleMaterials(), rng);
+                    blocks.add(new PlacedBlock(ceilingLoc, obstacleMat, platformIndex));
+                }
+            }
         }
 
         // ── 7. Checkpoint ──────────────────────────────────────────────────
         Checkpoint checkpoint = buildPlatformCheckpoint(world, platformIndex, center, outgoingYaw, blocks);
 
         return new GeneratedPlatform(center, List.copyOf(blocks), checkpoint, platformIndex, outgoingYaw);
+    }
+
+    // ── Helper methods for difficulty-driven generation ─────────────────────
+
+    private static String selectShapeForDifficulty(
+        @NotNull List<String> shapes,
+        @NotNull GeneratorDifficulty difficulty,
+        @NotNull Random rng
+    ) {
+        if (shapes.isEmpty()) return "1x1";
+        if (shapes.size() == 1) return shapes.get(0);
+
+        return switch (difficulty) {
+            case EASY -> {
+                // Bias heavily towards larger, forgiving shapes
+                List<String> large = shapes.stream().filter(s -> !isSingleBlockShape(s)).toList();
+                yield !large.isEmpty() && rng.nextDouble() < 0.85
+                    ? large.get(rng.nextInt(large.size()))
+                    : shapes.get(rng.nextInt(shapes.size()));
+            }
+            case MEDIUM -> shapes.get(rng.nextInt(shapes.size()));
+            case HARD, EXPERT -> {
+                // Bias heavily towards 1x1 precision landing blocks
+                List<String> single = shapes.stream().filter(JumpToJumpAlgorithm::isSingleBlockShape).toList();
+                yield !single.isEmpty() && rng.nextDouble() < 0.85
+                    ? single.get(rng.nextInt(single.size()))
+                    : shapes.get(rng.nextInt(shapes.size()));
+            }
+        };
+    }
+
+    private static int selectHeightDelta(
+        int minDelta, int maxDelta,
+        @NotNull GeneratorDifficulty difficulty,
+        @NotNull Random rng
+    ) {
+        if (minDelta >= maxDelta) return minDelta;
+
+        double roll = rng.nextDouble();
+        int delta = 0;
+        switch (difficulty) {
+            case EASY -> {
+                // 80% flat, 20% down 1
+                delta = roll < 0.80 ? 0 : -1;
+            }
+            case MEDIUM -> {
+                // 55% flat, 25% up 1, 20% down 1
+                if (roll < 0.55) delta = 0;
+                else if (roll < 0.80) delta = 1;
+                else delta = -1;
+            }
+            case HARD -> {
+                // 40% flat, 25% up 1, 20% down 1, 15% down 2
+                if (roll < 0.40) delta = 0;
+                else if (roll < 0.65) delta = 1;
+                else if (roll < 0.85) delta = -1;
+                else delta = -2;
+            }
+            case EXPERT -> {
+                // 35% flat, 25% up 1, 15% down 1, 15% down 2, 10% down 3
+                if (roll < 0.35) delta = 0;
+                else if (roll < 0.60) delta = 1;
+                else if (roll < 0.75) delta = -1;
+                else if (roll < 0.90) delta = -2;
+                else delta = -3;
+            }
+        }
+        return Math.max(minDelta, Math.min(maxDelta, delta));
+    }
+
+    private static int selectGapForDifficulty(
+        int minGap, int maxGap, int heightDelta,
+        @NotNull GeneratorDifficulty difficulty,
+        @NotNull Random rng
+    ) {
+        if (minGap >= maxGap) return minGap;
+
+        double roll = rng.nextDouble();
+        int gap = minGap;
+        switch (difficulty) {
+            case EASY -> {
+                // 65% gap 2 (1 air block), 35% gap 3 (2 air blocks)
+                gap = roll < 0.65 ? 2 : 3;
+            }
+            case MEDIUM -> {
+                // 25% gap 2, 45% gap 3, 30% gap 4
+                if (roll < 0.25) gap = 2;
+                else if (roll < 0.70) gap = 3;
+                else gap = 4;
+            }
+            case HARD -> {
+                // 30% gap 3, 45% gap 4, 25% gap 5
+                if (roll < 0.30) gap = 3;
+                else if (roll < 0.75) gap = 4;
+                else gap = 5;
+            }
+            case EXPERT -> {
+                // 20% gap 3, 40% gap 4, 35% gap 5, 5% gap 6 (on drops)
+                if (roll < 0.20) gap = 3;
+                else if (roll < 0.60) gap = 4;
+                else if (roll < 0.95) gap = 5;
+                else gap = 6;
+            }
+        }
+        return Math.max(minGap, Math.min(maxGap, gap));
+    }
+
+    private static double sampleTurnDelta(
+        double minTurn, double maxTurn,
+        @NotNull GeneratorDifficulty difficulty,
+        @NotNull Random rng
+    ) {
+        if (minTurn >= maxTurn) return minTurn;
+
+        if (difficulty == GeneratorDifficulty.EASY) {
+            // Easy parkour: 55% chance of nearly straight forward jump
+            if (rng.nextDouble() < 0.55 && minTurn <= 0 && maxTurn >= 0) {
+                double tightMin = Math.max(minTurn, -5.0);
+                double tightMax = Math.min(maxTurn, 5.0);
+                return tightMin + rng.nextDouble() * (tightMax - tightMin);
+            }
+        }
+
+        return minTurn + rng.nextDouble() * (maxTurn - minTurn);
     }
 
     private static Checkpoint buildPlatformCheckpoint(

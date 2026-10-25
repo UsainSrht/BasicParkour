@@ -41,14 +41,21 @@ public final class GeneratorTemplateLoader {
     public List<GeneratorTemplate> loadAll() {
         if (!generatorsDir.exists()) {
             generatorsDir.mkdirs();
-            plugin.saveResource("generators/example_generator.yml", false);
-            plugin.saveResource("generators/single_block.yml", false);
-        } else {
-            if (!new File(generatorsDir, "example_generator.yml").exists()) {
-                plugin.saveResource("generators/example_generator.yml", false);
-            }
-            if (!new File(generatorsDir, "single_block.yml").exists()) {
-                plugin.saveResource("generators/single_block.yml", false);
+        }
+        String[] defaultTemplates = {
+            "example_generator.yml",
+            "single_block.yml",
+            "single_block_easy.yml",
+            "single_block_hard.yml",
+            "single_block_expert.yml"
+        };
+        for (String tplName : defaultTemplates) {
+            File tplFile = new File(generatorsDir, tplName);
+            if (!tplFile.exists()) {
+                try {
+                    plugin.saveResource("generators/" + tplName, false);
+                } catch (Exception ignored) {
+                }
             }
         }
 
@@ -122,7 +129,16 @@ public final class GeneratorTemplateLoader {
             warn(file, "Invalid block-mode: " + cfg.getString("block-mode"));
             blockMode = BlockMode.FULL_UPFRONT;
         }
-        int slidingWindowAhead = cfg.getInt("sliding-window-ahead", 15);
+        ConfigurationSection globalDiff = plugin.getConfig().getConfigurationSection("generator.difficulties." + difficulty.name());
+
+        int slidingWindowAhead;
+        if (cfg.contains("sliding-window-ahead")) {
+            slidingWindowAhead = cfg.getInt("sliding-window-ahead");
+        } else if (globalDiff != null && globalDiff.contains("sliding-window-ahead")) {
+            slidingWindowAhead = globalDiff.getInt("sliding-window-ahead");
+        } else {
+            slidingWindowAhead = difficulty.getDefaultSlidingWindowAhead();
+        }
         int cleanupDelay = cfg.getInt("cleanup-delay-seconds",
             plugin.getConfig().getInt("generator.default-cleanup-delay-seconds", 30));
 
@@ -173,14 +189,14 @@ public final class GeneratorTemplateLoader {
 
         // ── Difficulty overrides ───────────────────────────────────────────
         ConfigurationSection overrides = cfg.getConfigurationSection("difficulty-overrides");
-        int minGap          = overrides != null ? overrides.getInt("min-gap",          -1) : -1;
-        int maxGap          = overrides != null ? overrides.getInt("max-gap",          -1) : -1;
-        int minHeightDelta  = overrides != null ? overrides.getInt("min-height-delta", Integer.MIN_VALUE) : Integer.MIN_VALUE;
-        int maxHeightDelta  = overrides != null ? overrides.getInt("max-height-delta", Integer.MAX_VALUE) : Integer.MAX_VALUE;
-        int platMinSize     = overrides != null ? overrides.getInt("platform-min-size", -1) : -1;
-        int platMaxSize     = overrides != null ? overrides.getInt("platform-max-size", -1) : -1;
-        double obstChance   = overrides != null ? overrides.getDouble("obstacle-chance", -1) : -1;
-        double modChance    = overrides != null ? overrides.getDouble("modifier-chance", -1) : -1;
+        int minGap          = getDifficultyInt(overrides, globalDiff, "min-gap", -1);
+        int maxGap          = getDifficultyInt(overrides, globalDiff, "max-gap", -1);
+        int minHeightDelta  = getDifficultyInt(overrides, globalDiff, "min-height-delta", Integer.MIN_VALUE);
+        int maxHeightDelta  = getDifficultyInt(overrides, globalDiff, "max-height-delta", Integer.MAX_VALUE);
+        int platMinSize     = getDifficultyInt(overrides, globalDiff, "platform-min-size", -1);
+        int platMaxSize     = getDifficultyInt(overrides, globalDiff, "platform-max-size", -1);
+        double obstChance   = getDifficultyDouble(overrides, globalDiff, "obstacle-chance", -1.0);
+        double modChance    = getDifficultyDouble(overrides, globalDiff, "modifier-chance", -1.0);
 
         // ── Modifier overrides ─────────────────────────────────────────────
         Map<Material, String> modifiers = new HashMap<>();
@@ -221,7 +237,17 @@ public final class GeneratorTemplateLoader {
             appearAnimation = BlockAppearAnimation.DEFAULT;
         }
 
-        double slidingWindowTime = cfg.getDouble("sliding-window-time-seconds", cfg.getDouble("sliding-window-time", 0.0));
+        double slidingWindowTime;
+        if (cfg.contains("sliding-window-time-seconds")) {
+            slidingWindowTime = cfg.getDouble("sliding-window-time-seconds");
+        } else if (cfg.contains("sliding-window-time")) {
+            slidingWindowTime = cfg.getDouble("sliding-window-time");
+        } else if (globalDiff != null && globalDiff.contains("sliding-window-time-seconds")) {
+            slidingWindowTime = globalDiff.getDouble("sliding-window-time-seconds");
+        } else {
+            slidingWindowTime = difficulty.getDefaultSlidingWindowTimeSeconds();
+        }
+
         SlidingWindowMode slidingMode;
         if (cfg.contains("sliding-window-mode")) {
             try {
@@ -313,6 +339,26 @@ public final class GeneratorTemplateLoader {
     private static String strOf(@NotNull Map<?, ?> map, @NotNull String key) {
         Object v = map.get(key);
         return v instanceof String s ? s : null;
+    }
+
+    private int getDifficultyInt(@Nullable ConfigurationSection overrides, @Nullable ConfigurationSection globalSec, @NotNull String key, int fallback) {
+        if (overrides != null && overrides.contains(key)) {
+            return overrides.getInt(key);
+        }
+        if (globalSec != null && globalSec.contains(key)) {
+            return globalSec.getInt(key);
+        }
+        return fallback;
+    }
+
+    private double getDifficultyDouble(@Nullable ConfigurationSection overrides, @Nullable ConfigurationSection globalSec, @NotNull String key, double fallback) {
+        if (overrides != null && overrides.contains(key)) {
+            return overrides.getDouble(key);
+        }
+        if (globalSec != null && globalSec.contains(key)) {
+            return globalSec.getDouble(key);
+        }
+        return fallback;
     }
 
     private void warn(@NotNull File file, @NotNull String msg) {

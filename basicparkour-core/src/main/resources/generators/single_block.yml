@@ -25,9 +25,11 @@ length-type: INFINITE
 fixed-length: 30
 
 block-mode: SLIDING_WINDOW
-sliding-window-ahead: 4
+# How many platforms to keep visible ahead (inherits from difficulty if omitted: EASY: 6, MEDIUM: 5, HARD: 4, EXPERT: 3)
+sliding-window-ahead: 5
 sliding-window-mode: DUAL
-sliding-window-time-seconds: 12.0
+# Platform lifespan in seconds before disappearing (inherits from difficulty if omitted: EASY: 12s, MEDIUM: 7s, HARD: 4s, EXPERT: 2.5s)
+sliding-window-time-seconds: 7.0
 
 appear-animation: GROW
 die-mode: FAIL_DIE
@@ -74,9 +76,13 @@ corridor-width: 0
 # Prevents endless runs from endlessly climbing to the sky or diving into the void.
 max-height-deviation: 15
 
-difficulty-overrides:
-  min-gap: 2
-  max-gap: 4
-  min-height-delta: -1
-  max-height-delta: 1
-  obstacle-chance: 0.0
+# ── Difficulty overrides (optional) ──────────────────────────────────────────
+# Leave commented out to use the built-in difficulty presets (EASY | MEDIUM | HARD | EXPERT),
+# or uncomment to enforce custom parameters:
+# difficulty-overrides:
+#   min-gap: 2
+#   max-gap: 4
+#   min-height-delta: -1
+#   max-height-delta: 1
+#   obstacle-chance: 0.0
+

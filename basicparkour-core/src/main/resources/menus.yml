@@ -189,10 +189,6 @@ generator_selector:
     - 7
     - 8
     - 9
-    - 10
-    - 12
-    - 14
-    - 16
     - 17
     - 18
     - 19
@@ -203,9 +199,13 @@ generator_selector:
     - 25
     - 26
   template_slots:
+    - 10
     - 11
+    - 12
     - 13
+    - 14
     - 15
+    - 16
   template_item:
     material: COMPASS
     custom_name: "<gradient:#a8ff78:#78ffd6><b><template_name></b></gradient>"

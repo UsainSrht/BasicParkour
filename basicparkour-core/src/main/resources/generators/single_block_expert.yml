@@ -1,0 +1,51 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# BasicParkour — Single Block Endless (Expert Preset)
+# ──────────────────────────────────────────────────────────────────────────────
+# High-stakes elite parkour for master runners.
+# Features edge-to-edge max jumps, acute corner jumps (up to 85°), steep drops,
+# technical +1 climbs with 3 air blocks, and high-tempo 2.5s sliding timer.
+
+id: "single_block_expert"
+display-name: "<gradient:#e52d27:#b31217>Single Block — Expert</gradient>"
+
+difficulty: EXPERT
+
+theme:
+  name: "Void"
+  platform-materials:
+    - PURPUR_BLOCK
+    - PURPUR_PILLAR
+    - OBSIDIAN
+    - END_STONE_BRICKS
+  accent-materials:
+    - RESPAWN_ANCHOR
+  obstacle-materials: []
+
+length-type: INFINITE
+fixed-length: 30
+
+block-mode: SLIDING_WINDOW
+sliding-window-ahead: 3
+sliding-window-mode: DUAL
+sliding-window-time-seconds: 2.5
+
+appear-animation: GROW
+die-mode: FAIL_DIE
+
+prevent-damage: true
+fall-damage-fails-session: true
+cleanup-delay-seconds: 0
+
+entry-mode: WALK_IN
+dedicated-world: "world"
+dedicated-world-radius: 20000
+
+shared: false
+leaderboard-course-id: "single_block_expert"
+
+platform-shapes:
+  - "1x1"
+
+direction-cone: 90.0
+corridor-width: 0
+max-height-deviation: 15

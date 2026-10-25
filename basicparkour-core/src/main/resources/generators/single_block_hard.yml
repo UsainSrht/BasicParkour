@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# BasicParkour — Single Block Endless (Hard Preset)
+# ──────────────────────────────────────────────────────────────────────────────
+# Technical single block parkour demanding momentum preservation.
+# Features true 4-block flat jumps, sharp turns, zig-zags, +1 climbs, and 4.0s sliding tempo.
+
+id: "single_block_hard"
+display-name: "<gradient:#ff9966:#ff5e62>Single Block — Hard</gradient>"
+
+difficulty: HARD
+
+theme:
+  name: "Crimson"
+  platform-materials:
+    - CRIMSON_PLANKS
+    - RED_TERRACOTTA
+    - ORANGE_TERRACOTTA
+    - BLACKSTONE
+  accent-materials:
+    - CRYING_OBSIDIAN
+  obstacle-materials: []
+
+length-type: INFINITE
+fixed-length: 30
+
+block-mode: SLIDING_WINDOW
+sliding-window-ahead: 4
+sliding-window-mode: DUAL
+sliding-window-time-seconds: 4.0
+
+appear-animation: GROW
+die-mode: FAIL_DIE
+
+prevent-damage: true
+fall-damage-fails-session: true
+cleanup-delay-seconds: 0
+
+entry-mode: WALK_IN
+dedicated-world: "world"
+dedicated-world-radius: 20000
+
+shared: false
+leaderboard-course-id: "single_block_hard"
+
+platform-shapes:
+  - "1x1"
+
+direction-cone: 90.0
+corridor-width: 0
+max-height-deviation: 15

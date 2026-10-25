@@ -194,7 +194,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             int maxGap      = template.resolvedMaxGap();
             int maxPlatforms = template.lengthType() == LengthType.FIXED
                 ? template.fixedLength()
-                : template.slidingWindowAhead() * 3;
+                : template.resolvedSlidingWindowAhead() * 3;
             int slotHalfWidth = maxGap * maxPlatforms
                 + plugin.getConfig().getInt("generator.dedicated-world-padding", 64);
             int radius   = template.dedicatedWorldRadius();
@@ -252,7 +252,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         Random rng = new Random(seed);
         int platformCount = template.lengthType() == LengthType.FIXED
             ? template.fixedLength()
-            : template.slidingWindowAhead() * 2;
+            : template.resolvedSlidingWindowAhead() * 2;
 
         List<JumpToJumpAlgorithm.GeneratedPlatform> platforms = new ArrayList<>();
         List<Location> recentCenters = new ArrayList<>();
@@ -465,9 +465,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         int playerPlatformIndex
     ) {
         long now = System.currentTimeMillis();
-        long timeoutMs = (long) (template.slidingWindowTimeSeconds() * 1000.0);
+        long timeoutMs = (long) (template.resolvedSlidingWindowTimeSeconds() * 1000.0);
         SlidingWindowMode mode = template.slidingWindowMode();
-        int maxBehind = playerPlatformIndex - template.slidingWindowAhead();
+        int maxBehind = playerPlatformIndex - template.resolvedSlidingWindowAhead();
 
         Map<String, List<PlacedBlock>> toRemoveByChunk = new LinkedHashMap<>();
         synchronized (instance.placedBlocks) {
@@ -509,9 +509,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         int[] nextIndex,
         int playerPlatformIndex
     ) {
-        int aheadNeeded = playerPlatformIndex + template.slidingWindowAhead();
+        int aheadNeeded = playerPlatformIndex + template.resolvedSlidingWindowAhead();
         int platformsCreated = 0;
-        int maxPerSweep = Math.max(4, template.slidingWindowAhead());
+        int maxPerSweep = Math.max(4, template.resolvedSlidingWindowAhead());
 
         while (aheadNeeded > nextIndex[0] - 1 && platformsCreated < maxPerSweep) {
             final Location prevCenter = lastCenter[0].clone();

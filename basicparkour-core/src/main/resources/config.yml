@@ -339,7 +339,11 @@ generator:
   block-message: ""
 
   # Default difficulty parameters (used unless overridden in the template YAML).
-  # Note: In vanilla Minecraft, players can jump at most 1.25 blocks vertically (+1 block elevation).
+  # Note: In vanilla Minecraft:
+  # - +1 jump: capped at horizontal center distance 4.0 (3 air blocks) in a straight line.
+  # - Flat jump: capped at horizontal center distance 5.0 (4 air blocks - classic 4b jump).
+  # - Downward jumps (-1 to -3): increased air time allows center distances up to 5.4 - 6.2 blocks.
+  # - Turning angles reduce sprint momentum and are coupled to jump distance to guarantee jumpability.
   difficulties:
     EASY:
       min-gap: 2
@@ -348,35 +352,47 @@ generator:
       max-height-delta: 0
       platform-min-size: 2
       platform-max-size: 3
+      max-turn-angle: 20.0
+      sliding-window-ahead: 6
+      sliding-window-time-seconds: 12.0
       obstacle-chance: 0.0
       modifier-chance: 0.0
     MEDIUM:
       min-gap: 2
-      max-gap: 3
+      max-gap: 4
       min-height-delta: -1
       max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 2
+      max-turn-angle: 40.0
+      sliding-window-ahead: 5
+      sliding-window-time-seconds: 7.0
       obstacle-chance: 0.10
       modifier-chance: 0.05
     HARD:
       min-gap: 3
-      max-gap: 4
-      min-height-delta: -2
-      max-height-delta: 1
-      platform-min-size: 1
-      platform-max-size: 2
-      obstacle-chance: 0.20
-      modifier-chance: 0.10
-    EXPERT:
-      min-gap: 3
-      max-gap: 4
+      max-gap: 5
       min-height-delta: -2
       max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 1
+      max-turn-angle: 65.0
+      sliding-window-ahead: 4
+      sliding-window-time-seconds: 4.0
       obstacle-chance: 0.25
-      modifier-chance: 0.15
+      modifier-chance: 0.12
+    EXPERT:
+      min-gap: 3
+      max-gap: 5
+      min-height-delta: -3
+      max-height-delta: 1
+      platform-min-size: 1
+      platform-max-size: 1
+      max-turn-angle: 85.0
+      sliding-window-ahead: 3
+      sliding-window-time-seconds: 2.5
+      obstacle-chance: 0.35
+      modifier-chance: 0.20
 
   # Entry points registered via /basicparkour setentry <templateId> [portal|interact] [optional_yaw].
   #

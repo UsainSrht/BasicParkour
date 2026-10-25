@@ -434,6 +434,21 @@ public record GeneratorTemplate(
         return Math.max(0, maxHeightDeviation);
     }
 
+    /** Resolved maximum turn angle spread in degrees. */
+    public double resolvedMaxTurnAngle() {
+        return difficulty.getDefaultMaxTurnAngle();
+    }
+
+    /** Resolved sliding window ahead platform count. */
+    public int resolvedSlidingWindowAhead() {
+        return slidingWindowAhead > 0 ? slidingWindowAhead : difficulty.getDefaultSlidingWindowAhead();
+    }
+
+    /** Resolved platform lifespan in seconds before disappearing. */
+    public double resolvedSlidingWindowTimeSeconds() {
+        return slidingWindowTimeSeconds > 0.0 ? slidingWindowTimeSeconds : difficulty.getDefaultSlidingWindowTimeSeconds();
+    }
+
     /**
      * Creates a new fluent builder for defining a {@link GeneratorTemplate} programmatically.
      *
