@@ -79,6 +79,13 @@ public final class PlayerMoveListener implements Listener {
             return;
         }
 
+        // ── 0b. Anti-elytra check ────────────────────────────────────────────
+        boolean disableElytra = course.isPreventElytra().orElseGet(() ->
+            plugin.getConfig().getBoolean("restrictions.disable-elytra", true));
+        if (disableElytra && player.isGliding()) {
+            player.setGliding(false);
+        }
+
         // ── 1. End region check ──────────────────────────────────────────────
         if (course.getEndRegion().overlaps(player.getBoundingBox()) || course.getEndRegion().contains(to)) {
             sessionManager.completeSession(player);

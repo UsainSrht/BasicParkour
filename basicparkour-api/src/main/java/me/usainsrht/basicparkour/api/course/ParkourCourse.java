@@ -229,6 +229,71 @@ public interface ParkourCourse {
     }
 
     /**
+     * Whether knockback is prevented for players doing this course.
+     * If empty, the global configuration (protections.prevent-knockback) is used.
+     *
+     * @return optional boolean override
+     */
+    @NotNull
+    default Optional<Boolean> isPreventKnockback() {
+        return Optional.empty();
+    }
+
+    @NotNull
+    default Optional<Boolean> isCancelKnockback() {
+        return isPreventKnockback();
+    }
+
+    /**
+     * Whether projectile launching (ender pearls, bows, tridents, etc.) is prevented for players doing this course.
+     * If empty, the global configuration (restrictions.disable-projectile-launch) is used.
+     *
+     * @return optional boolean override
+     */
+    @NotNull
+    default Optional<Boolean> isPreventProjectileLaunch() {
+        return Optional.empty();
+    }
+
+    @NotNull
+    default Optional<Boolean> isDisableProjectileLaunch() {
+        return isPreventProjectileLaunch();
+    }
+
+    /**
+     * Whether elytra gliding is prevented for players doing this course.
+     * If empty, the global configuration (restrictions.disable-elytra) is used.
+     *
+     * @return optional boolean override
+     */
+    @NotNull
+    default Optional<Boolean> isPreventElytra() {
+        return Optional.empty();
+    }
+
+    @NotNull
+    default Optional<Boolean> isDisableElytra() {
+        return isPreventElytra();
+    }
+
+    /**
+     * Whether external teleports (commands, server, chorus fruit, etc.) automatically cause
+     * the player to leave this course's session.
+     * If empty, the global configuration (session.teleport-leaves-session) is used.
+     *
+     * @return optional boolean override
+     */
+    @NotNull
+    default Optional<Boolean> isTeleportLeavesSession() {
+        return Optional.empty();
+    }
+
+    @NotNull
+    default Optional<Boolean> isCancelOnExternalTeleport() {
+        return isTeleportLeavesSession();
+    }
+
+    /**
      * Creates a new fluent builder for defining a {@link ParkourCourse} programmatically.
      *
      * @param id the unique identifier for this course
@@ -263,6 +328,10 @@ public interface ParkourCourse {
         private Location completeLocation;
         private Boolean preventDamage;
         private Boolean fallDamageFailsSession;
+        private Boolean preventKnockback;
+        private Boolean preventProjectileLaunch;
+        private Boolean preventElytra;
+        private Boolean teleportLeavesSession;
 
         public Builder(@NotNull String id) {
             this.id = java.util.Objects.requireNonNull(id, "id cannot be null");
@@ -428,6 +497,30 @@ public interface ParkourCourse {
         }
 
         @NotNull
+        public Builder preventKnockback(@org.jetbrains.annotations.Nullable Boolean preventKnockback) {
+            this.preventKnockback = preventKnockback;
+            return this;
+        }
+
+        @NotNull
+        public Builder preventProjectileLaunch(@org.jetbrains.annotations.Nullable Boolean preventProjectileLaunch) {
+            this.preventProjectileLaunch = preventProjectileLaunch;
+            return this;
+        }
+
+        @NotNull
+        public Builder preventElytra(@org.jetbrains.annotations.Nullable Boolean preventElytra) {
+            this.preventElytra = preventElytra;
+            return this;
+        }
+
+        @NotNull
+        public Builder teleportLeavesSession(@org.jetbrains.annotations.Nullable Boolean teleportLeavesSession) {
+            this.teleportLeavesSession = teleportLeavesSession;
+            return this;
+        }
+
+        @NotNull
         public ParkourCourse build() {
             if (worldName == null) {
                 throw new IllegalStateException("Course worldName must be specified.");
@@ -459,6 +552,10 @@ public interface ParkourCourse {
             final Location fCompLoc = completeLocation;
             final Boolean fPreventDamage = preventDamage;
             final Boolean fFallDamageFails = fallDamageFailsSession;
+            final Boolean fPreventKnockback = preventKnockback;
+            final Boolean fPreventProjectileLaunch = preventProjectileLaunch;
+            final Boolean fPreventElytra = preventElytra;
+            final Boolean fTeleportLeavesSession = teleportLeavesSession;
 
             return new ParkourCourse() {
                 @Override @NotNull public String getId() { return fId; }
@@ -481,6 +578,10 @@ public interface ParkourCourse {
                 @Override @NotNull public Optional<Location> getCompleteLocation() { return Optional.ofNullable(fCompLoc); }
                 @Override @NotNull public Optional<Boolean> isPreventDamage() { return Optional.ofNullable(fPreventDamage); }
                 @Override @NotNull public Optional<Boolean> isFallDamageFailsSession() { return Optional.ofNullable(fFallDamageFails); }
+                @Override @NotNull public Optional<Boolean> isPreventKnockback() { return Optional.ofNullable(fPreventKnockback); }
+                @Override @NotNull public Optional<Boolean> isPreventProjectileLaunch() { return Optional.ofNullable(fPreventProjectileLaunch); }
+                @Override @NotNull public Optional<Boolean> isPreventElytra() { return Optional.ofNullable(fPreventElytra); }
+                @Override @NotNull public Optional<Boolean> isTeleportLeavesSession() { return Optional.ofNullable(fTeleportLeavesSession); }
             };
         }
     }

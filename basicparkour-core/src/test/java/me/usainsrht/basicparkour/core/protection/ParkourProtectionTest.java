@@ -82,6 +82,80 @@ public class ParkourProtectionTest {
 
         assertTrue(defaultCourse.isPreventDamage().isEmpty());
         assertTrue(defaultCourse.isFallDamageFailsSession().isEmpty());
+        assertTrue(defaultCourse.isPreventKnockback().isEmpty());
+        assertTrue(defaultCourse.isPreventProjectileLaunch().isEmpty());
+        assertTrue(defaultCourse.isPreventElytra().isEmpty());
+        assertTrue(defaultCourse.isTeleportLeavesSession().isEmpty());
+    }
+
+    @Test
+    public void testParkourCourseNewOptionsAndAliases() {
+        Location l1 = new Location(null, 0, 0, 0);
+        Location l2 = new Location(null, 1, 1, 1);
+        CourseRegion region = new CourseRegionImpl(l1, l2);
+
+        // Test constructor override
+        ParkourCourseImpl course = new ParkourCourseImpl(
+            "custom_options_course",
+            Component.text("Custom Options"),
+            "world",
+            region,
+            region,
+            List.of(),
+            null,
+            false,
+            Set.of(),
+            BlockListMode.BLACKLIST,
+            0,
+            DieMode.RESTART_DIE,
+            List.of(),
+            Map.of(),
+            List.of(),
+            -1L,
+            null,
+            null,
+            true,
+            false,
+            true,   // preventKnockback
+            true,   // preventProjectileLaunch
+            true,   // preventElytra
+            false   // teleportLeavesSession
+        );
+
+        assertTrue(course.isPreventKnockback().orElse(false));
+        assertTrue(course.isCancelKnockback().orElse(false));
+
+        assertTrue(course.isPreventProjectileLaunch().orElse(false));
+        assertTrue(course.isDisableProjectileLaunch().orElse(false));
+
+        assertTrue(course.isPreventElytra().orElse(false));
+        assertTrue(course.isDisableElytra().orElse(false));
+
+        assertFalse(course.isTeleportLeavesSession().orElse(true));
+        assertFalse(course.isCancelOnExternalTeleport().orElse(true));
+
+        // Test fluent Builder
+        me.usainsrht.basicparkour.api.course.ParkourCourse builtCourse = me.usainsrht.basicparkour.api.course.ParkourCourse.builder("builder_course")
+            .worldName("world")
+            .startRegion(region)
+            .endRegion(region)
+            .preventKnockback(false)
+            .preventProjectileLaunch(false)
+            .preventElytra(false)
+            .teleportLeavesSession(true)
+            .build();
+
+        assertFalse(builtCourse.isPreventKnockback().orElse(true));
+        assertFalse(builtCourse.isCancelKnockback().orElse(true));
+
+        assertFalse(builtCourse.isPreventProjectileLaunch().orElse(true));
+        assertFalse(builtCourse.isDisableProjectileLaunch().orElse(true));
+
+        assertFalse(builtCourse.isPreventElytra().orElse(true));
+        assertFalse(builtCourse.isDisableElytra().orElse(true));
+
+        assertTrue(builtCourse.isTeleportLeavesSession().orElse(false));
+        assertTrue(builtCourse.isCancelOnExternalTeleport().orElse(false));
     }
 
     @Test

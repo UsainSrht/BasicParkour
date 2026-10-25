@@ -218,17 +218,36 @@ public final class CourseLoader {
         }
         Location completeLoc = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("complete-location"));
 
-        // Protections
+        // Protections & Restrictions
         Boolean preventDamage = cfg.contains("prevent-damage") ? cfg.getBoolean("prevent-damage") : null;
         Boolean fallDamageFails = cfg.contains("fall-damage-fails-session")
             ? cfg.getBoolean("fall-damage-fails-session")
             : (cfg.contains("fall-damage-fails") ? cfg.getBoolean("fall-damage-fails") : null);
+        Boolean preventKnockback = cfg.contains("prevent-knockback")
+            ? cfg.getBoolean("prevent-knockback")
+            : (cfg.contains("cancel-knockback") ? cfg.getBoolean("cancel-knockback") : null);
+        Boolean preventProjectileLaunch = cfg.contains("prevent-projectile-launch")
+            ? cfg.getBoolean("prevent-projectile-launch")
+            : (cfg.contains("disable-projectile-launch")
+                ? cfg.getBoolean("disable-projectile-launch")
+                : (cfg.contains("disable-ender-pearls") ? cfg.getBoolean("disable-ender-pearls") : null));
+        Boolean preventElytra = cfg.contains("prevent-elytra")
+            ? cfg.getBoolean("prevent-elytra")
+            : (cfg.contains("disable-elytra")
+                ? cfg.getBoolean("disable-elytra")
+                : (cfg.contains("cancel-elytra") ? cfg.getBoolean("cancel-elytra") : null));
+        Boolean teleportLeavesSession = cfg.contains("teleport-leaves-session")
+            ? cfg.getBoolean("teleport-leaves-session")
+            : (cfg.contains("cancel-on-external-teleport")
+                ? cfg.getBoolean("cancel-on-external-teleport")
+                : (cfg.contains("teleport-cancels-session") ? cfg.getBoolean("teleport-cancels-session") : null));
 
         return new ParkourCourseImpl(id, displayName, worldName,
             startRegion, endRegion, startLocations, portalRegion, portalTeleport,
             blockList, blockListMode, minY, dieMode,
             checkpoints, modifiers, rewards, timeLimitMs,
-            failLoc, completeLoc, preventDamage, fallDamageFails);
+            failLoc, completeLoc, preventDamage, fallDamageFails,
+            preventKnockback, preventProjectileLaunch, preventElytra, teleportLeavesSession);
     }
 
     @Nullable

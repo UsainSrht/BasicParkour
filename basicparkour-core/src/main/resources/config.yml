@@ -82,13 +82,17 @@ session:
   complete-location: null
   exit-location: null
 
-  # When true, if a player is teleported away by another plugin or command (e.g. /home, /spawn, /tpa),
-  # their active parkour session is cleanly ended instead of running in the background.
+  # When true, if a player is teleported away by another plugin, command, or mechanic (e.g. /home, /spawn, /tpa, chorus fruit),
+  # their active parkour session is cleanly ended automatically.
+  teleport-leaves-session: true
   cancel-on-external-teleport: true
 
 # ─── Protections (Survival Safety) ───────────────────────────────────────────
 # Crucial for SMP, Skyblock, and Factions so players do not die, lose items, or grief courses.
 protections:
+  # Prevents knockback on players during parkour (attacks, projectiles, explosions, wind charges, etc.).
+  prevent-knockback: true
+
   # Prevents all damage (PvP, mobs, fall damage, fire, lava, drowning, suffocation, lightning) while doing parkour.
   # Handled safely via events (EntityDamageEvent) rather than the invulnerability tag so game mechanics remain responsive.
   prevent-damage: true
@@ -126,6 +130,9 @@ restrictions:
 
   # Disables Elytra gliding to prevent gliding straight to checkpoints or finish.
   disable-elytra: true
+
+  # Disables launching projectiles (ender pearls, bows, tridents, etc.) during parkour.
+  disable-projectile-launch: true
 
   # Prevents throwing Ender Pearls or eating Chorus Fruit during parkour.
   disable-ender-pearls: true

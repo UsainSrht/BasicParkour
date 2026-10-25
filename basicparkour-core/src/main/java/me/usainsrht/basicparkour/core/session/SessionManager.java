@@ -177,6 +177,13 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             player.setFlying(false);
         }
 
+        // Elytra restrictions
+        boolean disableElytra = course.isPreventElytra().orElseGet(() ->
+            plugin.getConfig().getBoolean("restrictions.disable-elytra", true));
+        if (disableElytra && player.isGliding()) {
+            player.setGliding(false);
+        }
+
         // Hunger freeze / full sprint
         if (plugin.getConfig().getBoolean("protections.prevent-hunger", true)) {
             previousFoodLevel.put(player.getUniqueId(), player.getFoodLevel());

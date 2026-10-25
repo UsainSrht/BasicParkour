@@ -121,7 +121,9 @@ public class CourseLeaveEvent extends PlayerParkourEvent implements Cancellable 
         /** Player disconnected from the server */
         DISCONNECT(false),
         /** Plugin shutdown or reload */
-        PLUGIN_STOP(false);
+        PLUGIN_STOP(false),
+        /** Player was teleported away externally (command, server, chorus fruit, etc.) */
+        TELEPORT(false);
 
         private final boolean cancellable;
 
