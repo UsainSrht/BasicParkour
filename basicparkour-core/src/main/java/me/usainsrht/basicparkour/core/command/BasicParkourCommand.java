@@ -78,6 +78,13 @@ public final class BasicParkourCommand {
         this.npcManager = npcManager;
     }
 
+    private void suggestCoursesAndDrafts(@NotNull com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+        BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+        if (editorManager != null) {
+            editorManager.getDraftIds().forEach(builder::suggest);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Registration
     // -----------------------------------------------------------------------
@@ -154,8 +161,9 @@ public final class BasicParkourCommand {
         root.then(Commands.literal(cfg.getCmdTop())
                 .then(Commands.argument("courseId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses()
-                                    .forEach(c -> builder.suggest(c.getId()));
+                            suggestCoursesAndDrafts(builder);
+                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                                    .forEach(t -> builder.suggest(t.leaderboardCourseId()));
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -239,6 +247,7 @@ public final class BasicParkourCommand {
                         .suggests((ctx, builder) -> {
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -272,8 +281,13 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("templateId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
+                            var sec = plugin.getConfig().getConfigurationSection("generator.entry-points");
+                            if (sec != null) {
+                                sec.getKeys(false).forEach(builder::suggest);
+                            }
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -291,9 +305,10 @@ public final class BasicParkourCommand {
                 })
                 .then(Commands.argument("templateId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
+                            builder.suggest("global");
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
-                            builder.suggest("global");
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -311,9 +326,10 @@ public final class BasicParkourCommand {
                 })
                 .then(Commands.argument("templateId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
+                            builder.suggest("global");
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
-                            builder.suggest("global");
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -402,7 +418,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -416,7 +432,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -430,7 +446,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -444,7 +460,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -458,7 +474,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                            suggestCoursesAndDrafts(builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -878,7 +894,7 @@ public final class BasicParkourCommand {
             entryListener.reloadEntries();
         }
 
-        send(sender, "<green>Entry point (" + typeKey + ") registered for template '"
+        send(sender, "<green>Entry point (" + typeKey + ") registered for '"
             + templateId + "'" + (yaw != null ? " with fixed direction (yaw: " + yaw + ")" : "") + ".</green>");
     }
 

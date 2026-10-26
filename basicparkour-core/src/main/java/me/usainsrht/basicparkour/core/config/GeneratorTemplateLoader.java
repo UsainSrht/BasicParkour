@@ -283,10 +283,8 @@ public final class GeneratorTemplateLoader {
         int maxHeightDeviation = cfg.getInt("max-height-deviation", cfg.getInt("height-range", 15));
 
         // ── Protection overrides ──────────────────────────────────────────────
-        Boolean preventDamage = cfg.contains("prevent-damage") ? cfg.getBoolean("prevent-damage") : null;
-        Boolean fallDamageFails = cfg.contains("fall-damage-fails-session")
-            ? cfg.getBoolean("fall-damage-fails-session")
-            : (cfg.contains("fall-damage-fails") ? cfg.getBoolean("fall-damage-fails") : null);
+        Boolean preventDamage = getBooleanOrNull(cfg, "prevent-damage");
+        Boolean fallDamageFails = getBooleanOrNull(cfg, "fall-damage-fails-session", "fall-damage-fails");
 
         return new GeneratorTemplate(
             id, displayName, difficulty, theme, lengthType, fixedLength,
@@ -359,6 +357,16 @@ public final class GeneratorTemplateLoader {
             return globalSec.getDouble(key);
         }
         return fallback;
+    }
+
+    @Nullable
+    static Boolean getBooleanOrNull(@NotNull ConfigurationSection cfg, @NotNull String... keys) {
+        for (String key : keys) {
+            if (cfg.contains(key)) {
+                return cfg.getBoolean(key);
+            }
+        }
+        return null;
     }
 
     private void warn(@NotNull File file, @NotNull String msg) {

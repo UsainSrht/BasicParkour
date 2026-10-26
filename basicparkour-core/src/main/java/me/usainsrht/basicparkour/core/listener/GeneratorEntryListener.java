@@ -194,19 +194,28 @@ public final class GeneratorEntryListener implements Listener {
 
     private void startGeneratedRun(@NotNull Player player, @NotNull String templateId) {
         Optional<GeneratorTemplate> tplOpt = generatorManager.getTemplate(templateId);
-        if (tplOpt.isEmpty()) {
-            player.sendMessage(net.kyori.adventure.text.Component.text(
-                "§cUnknown generator template: " + templateId));
+        if (tplOpt.isPresent()) {
+            generatorManager.generate(player, tplOpt.get())
+                .thenAccept(session -> {
+                    if (session == null) {
+                        plugin.getScheduler().runOnEntity(player, () ->
+                            player.sendMessage(net.kyori.adventure.text.Component.text(
+                                "§cCould not start generated run. Try again later.")));
+                    }
+                });
             return;
         }
-        generatorManager.generate(player, tplOpt.get())
-            .thenAccept(session -> {
-                if (session == null) {
-                    plugin.getScheduler().runOnEntity(player, () ->
-                        player.sendMessage(net.kyori.adventure.text.Component.text(
-                            "§cCould not start generated run. Try again later.")));
-                }
-            });
+
+        // Support premade courses as well for walk-in entry!
+        var courseOpt = plugin.getBasicParkourAPI().getCourseRegistry().getCourse(templateId);
+        if (courseOpt.isPresent()) {
+            plugin.getScheduler().runOnEntity(player, () ->
+                plugin.getBasicParkourAPI().getSessionManager().startSession(player, courseOpt.get(), false));
+            return;
+        }
+
+        player.sendMessage(net.kyori.adventure.text.Component.text(
+            "§cUnknown generator template or course: " + templateId));
     }
 
     @Nullable

@@ -43,6 +43,19 @@ public final class PlayerMoveListener implements Listener {
 
     private final BasicParkourPlugin plugin;
     private final SessionManager sessionManager;
+    private final java.util.Map<java.util.UUID, Long> startRegionCooldown = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public void setStartCooldown(@NotNull java.util.UUID uuid, long ms) {
+        startRegionCooldown.put(uuid, System.currentTimeMillis() + ms);
+    }
+
+    public boolean isStartOnCooldown(@NotNull java.util.UUID uuid) {
+        Long until = startRegionCooldown.get(uuid);
+        if (until == null) return false;
+        if (System.currentTimeMillis() < until) return true;
+        startRegionCooldown.remove(uuid);
+        return false;
+    }
 
     public PlayerMoveListener(@NotNull BasicParkourPlugin plugin, @NotNull SessionManager sessionManager) {
         this.plugin = plugin;
@@ -214,17 +227,20 @@ public final class PlayerMoveListener implements Listener {
     // -----------------------------------------------------------------------
 
     private void handleStartRegion(@NotNull Player player, @NotNull Location to) {
+        if (isStartOnCooldown(player.getUniqueId())) return;
         for (ParkourCourse course : plugin.getBasicParkourAPI().getCourseRegistry().getCourses()) {
             // Ensure same world
             if (!course.getWorldName().equals(to.getWorld().getName())) continue;
             if (course.getStartRegion().overlaps(player.getBoundingBox()) || course.getStartRegion().contains(to)) {
                 // When player walks into the start region, start right there without teleporting
+                setStartCooldown(player.getUniqueId(), 1500L);
                 sessionManager.startSession(player, course, false);
                 return; // Start at most one course
             }
             if (course.getPortalRegion().isPresent()) {
                 var portal = course.getPortalRegion().get();
                 if (portal.overlaps(player.getBoundingBox()) || portal.contains(to)) {
+                    setStartCooldown(player.getUniqueId(), 1500L);
                     sessionManager.startSession(player, course, course.isPortalTeleport());
                     return;
                 }

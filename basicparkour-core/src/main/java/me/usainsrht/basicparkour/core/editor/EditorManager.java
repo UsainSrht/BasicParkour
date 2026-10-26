@@ -142,6 +142,11 @@ public final class EditorManager {
         return drafts.get(id.toLowerCase(Locale.ROOT));
     }
 
+    @NotNull
+    public Set<String> getDraftIds() {
+        return Collections.unmodifiableSet(drafts.keySet());
+    }
+
     /**
      * Saves the draft course to plugins/BasicParkour/courses/{id}.yml and registers it.
      */
@@ -240,7 +245,10 @@ public final class EditorManager {
         // Load into CourseRegistry immediately
         CourseLoader loader = new CourseLoader(plugin);
         Optional<ParkourCourse> loaded = loader.load(file);
-        loaded.ifPresent(c -> BasicParkourAPI.get().getCourseRegistry().registerCourse(c));
+        loaded.ifPresent(c -> {
+            BasicParkourAPI.get().getCourseRegistry().unregisterCourse(c.getId());
+            BasicParkourAPI.get().getCourseRegistry().registerCourse(c);
+        });
 
         return true;
     }

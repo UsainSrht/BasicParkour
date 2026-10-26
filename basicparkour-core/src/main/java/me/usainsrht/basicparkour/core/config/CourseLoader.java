@@ -219,28 +219,15 @@ public final class CourseLoader {
         Location completeLoc = me.usainsrht.basicparkour.core.util.LocationParser.parse(cfg.get("complete-location"));
 
         // Protections & Restrictions
-        Boolean preventDamage = cfg.contains("prevent-damage") ? cfg.getBoolean("prevent-damage") : null;
-        Boolean fallDamageFails = cfg.contains("fall-damage-fails-session")
-            ? cfg.getBoolean("fall-damage-fails-session")
-            : (cfg.contains("fall-damage-fails") ? cfg.getBoolean("fall-damage-fails") : null);
-        Boolean preventKnockback = cfg.contains("prevent-knockback")
-            ? cfg.getBoolean("prevent-knockback")
-            : (cfg.contains("cancel-knockback") ? cfg.getBoolean("cancel-knockback") : null);
-        Boolean preventProjectileLaunch = cfg.contains("prevent-projectile-launch")
-            ? cfg.getBoolean("prevent-projectile-launch")
-            : (cfg.contains("disable-projectile-launch")
-                ? cfg.getBoolean("disable-projectile-launch")
-                : (cfg.contains("disable-ender-pearls") ? cfg.getBoolean("disable-ender-pearls") : null));
-        Boolean preventElytra = cfg.contains("prevent-elytra")
-            ? cfg.getBoolean("prevent-elytra")
-            : (cfg.contains("disable-elytra")
-                ? cfg.getBoolean("disable-elytra")
-                : (cfg.contains("cancel-elytra") ? cfg.getBoolean("cancel-elytra") : null));
-        Boolean teleportLeavesSession = cfg.contains("teleport-leaves-session")
-            ? cfg.getBoolean("teleport-leaves-session")
-            : (cfg.contains("cancel-on-external-teleport")
-                ? cfg.getBoolean("cancel-on-external-teleport")
-                : (cfg.contains("teleport-cancels-session") ? cfg.getBoolean("teleport-cancels-session") : null));
+        Boolean preventDamage = getBooleanOrNull(cfg, "prevent-damage");
+        Boolean fallDamageFails = getBooleanOrNull(cfg, "fall-damage-fails-session", "fall-damage-fails");
+        Boolean preventKnockback = getBooleanOrNull(cfg, "prevent-knockback", "cancel-knockback");
+        Boolean preventProjectileLaunch = getBooleanOrNull(cfg,
+            "prevent-projectile-launch", "disable-projectile-launch", "disable-ender-pearls");
+        Boolean preventElytra = getBooleanOrNull(cfg,
+            "prevent-elytra", "disable-elytra", "cancel-elytra");
+        Boolean teleportLeavesSession = getBooleanOrNull(cfg,
+            "teleport-leaves-session", "cancel-on-external-teleport", "teleport-cancels-session");
 
         return new ParkourCourseImpl(id, displayName, worldName,
             startRegion, endRegion, startLocations, portalRegion, portalTeleport,
@@ -310,6 +297,16 @@ public final class CourseLoader {
     private static String getString(@NotNull Map<?, ?> map, @NotNull String key) {
         Object val = map.get(key);
         return val instanceof String s ? s : null;
+    }
+
+    @Nullable
+    static Boolean getBooleanOrNull(@NotNull ConfigurationSection cfg, @NotNull String... keys) {
+        for (String key : keys) {
+            if (cfg.contains(key)) {
+                return cfg.getBoolean(key);
+            }
+        }
+        return null;
     }
 
     private void warn(@NotNull File file, @NotNull String msg) {
