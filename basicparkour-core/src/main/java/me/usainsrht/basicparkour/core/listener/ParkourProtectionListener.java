@@ -65,7 +65,11 @@ public final class ParkourProtectionListener implements Listener {
                     .orElseGet(() -> plugin.getConfig().getBoolean("protections.prevent-fall-damage", preventDamage));
 
             if (fallDamageFails) {
-                sessionManager.failSession(player, ParkourSession.FailReason.VOID);
+                plugin.getDebugManager().onFallDamage(player, event.getDamage(), player.getFallDistance(), true);
+                sessionManager.failSession(player, ParkourSession.FailReason.VOID,
+                    String.format(java.util.Locale.ROOT, "Fall damage triggered (damage=%.2f, fallDistance=%.2f)", event.getDamage(), player.getFallDistance()));
+            } else {
+                plugin.getDebugManager().onFallDamage(player, event.getDamage(), player.getFallDistance(), false);
             }
 
             if (preventDamage || preventFallDamage) {

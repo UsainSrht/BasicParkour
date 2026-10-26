@@ -75,6 +75,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     /** Set of player UUIDs currently executing an internal plugin teleport. */
     private final Set<UUID> internalTeleports = ConcurrentHashMap.newKeySet();
 
+    /** Player UUIDs with a temporary respawn/teleport fail-immunity cooldown. */
+    private final Map<UUID, Long> respawnCooldown = new ConcurrentHashMap<>();
+
     /** Saved player flight states prior to starting parkour. */
     private final Map<UUID, Boolean> previousAllowFlight = new ConcurrentHashMap<>();
 
@@ -252,6 +255,8 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         messages.send(messages.getCourseStart(), player,
             Placeholder.component("course", course.getDisplayName()));
 
+        plugin.getDebugManager().onSessionStart(player, course, shouldTeleport);
+
         plugin.getLogger().info("[BasicParkour] Started session for %s on course '%s'".formatted(
             player.getName(), course.getId()));
 
@@ -328,6 +333,8 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                 Placeholder.parsed("checkpoint", String.valueOf(checkpoint.getIndex() + 1)),
                 Placeholder.parsed("time", snapshot.formatted()));
         }
+
+        plugin.getDebugManager().onCheckpointReach(player, checkpoint, snapshot.formatted());
 
         return true;
     }
@@ -532,6 +539,8 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                                 Placeholder.component("course", session.getCourse().getDisplayName()));
                         }
 
+                        plugin.getDebugManager().onSessionComplete(player, session.getCourse(), TimerFormatter.format(elapsed));
+
                         // Run reward commands
                         for (String cmd : rewardsToRun) {
                             String resolved = cmd.replace("{player}", player.getName());
@@ -574,6 +583,18 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
      * @param reason the fail reason
      */
     public void failSession(@NotNull Player player, @NotNull FailReason reason) {
+        failSession(player, reason, null);
+    }
+
+    /**
+     * Called when a player's session should be failed (kill block, void, etc.) with diagnostic detail.
+     * Teleports the player instantly to their last checkpoint using the entity scheduler.
+     *
+     * @param player the player
+     * @param reason the fail reason
+     * @param detail optional diagnostic information for debugging
+     */
+    public void failSession(@NotNull Player player, @NotNull FailReason reason, @Nullable String detail) {
         ParkourSessionImpl session = sessions.get(player.getUniqueId());
         if (session == null) return;
 
@@ -585,20 +606,19 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             dieMode = me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE;
         }
 
+        // If player has not reached any checkpoint yet, fail completely (FAIL_DIE)
+        if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.RESTART_DIE && session.getLastCheckpoint().isEmpty()) {
+            dieMode = me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE;
+        }
+
         Location initialRespawnLoc;
         if (dieMode == me.usainsrht.basicparkour.api.course.DieMode.FAIL_DIE) {
             initialRespawnLoc = resolveFailLocation(session);
         } else {
-            // Determine respawn location: last checkpoint or start center
+            // Determine respawn location: last checkpoint
             initialRespawnLoc = session.getLastCheckpoint()
                 .map(Checkpoint::getSpawnLocation)
-                .orElseGet(() -> {
-                    if (!session.getCourse().getStartLocations().isEmpty()) {
-                        java.util.List<Location> locs = session.getCourse().getStartLocations();
-                        return locs.get(new java.util.Random().nextInt(locs.size()));
-                    }
-                    return session.getCourse().getStartRegion().getCenter();
-                });
+                .orElseGet(() -> resolveFailLocation(session));
         }
 
         // Fire CoursePreFailEvent (cancellable)
@@ -608,6 +628,8 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
 
         reason = preFail.getReason();
         Location respawnLoc = preFail.getRespawnLocation();
+
+        plugin.getDebugManager().onSessionFail(player, session, reason, detail, respawnLoc);
 
         if (!session.tryFail()) return;
 
@@ -679,6 +701,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                 }
 
                 if (finalDieMode == me.usainsrht.basicparkour.api.course.DieMode.RESTART_DIE) {
+                    setRespawnCooldown(player.getUniqueId(), 1500L);
                     // Restart a fresh session on the same course, preserving startTime and checkpoints
                     ParkourSessionImpl newSession = new ParkourSessionImpl(
                         player, session.getJoinLocation(), session.getCourse(), this, session.getStartTime()
@@ -689,6 +712,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
                     }
                     sessions.put(player.getUniqueId(), newSession);
                 } else {
+                    clearRespawnCooldown(player.getUniqueId());
                     // FAIL_DIE: completely end session
                     if (plugin.getTabHook() != null) {
                         plugin.getTabHook().onPlayerLeaveSession(player);
@@ -725,6 +749,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             if (plugin.getConfig().getBoolean("ghost.enabled", false)) {
                 plugin.getGhostRecorder().discardRecording(player);
             }
+            clearRespawnCooldown(player.getUniqueId());
             if (plugin.getGeneratorManager() != null) {
                 plugin.getGeneratorManager().onSessionEnd(player);
             }
@@ -926,6 +951,7 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         targetLoc = event.getTargetLocation();
 
         messages.send(messages.getTeleportedToCheckpoint(), player);
+        setRespawnCooldown(player.getUniqueId(), 1500L);
         markInternalTeleport(player.getUniqueId());
         final Location finalTarget = targetLoc;
         scheduler.runOnEntity(player, () ->
@@ -997,6 +1023,22 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
 
     public void clearInternalTeleport(@NotNull UUID uuid) {
         internalTeleports.remove(uuid);
+    }
+
+    public void setRespawnCooldown(@NotNull UUID uuid, long ms) {
+        respawnCooldown.put(uuid, System.currentTimeMillis() + ms);
+    }
+
+    public boolean isRespawnImmune(@NotNull UUID uuid) {
+        Long until = respawnCooldown.get(uuid);
+        if (until == null) return false;
+        if (System.currentTimeMillis() < until) return true;
+        respawnCooldown.remove(uuid);
+        return false;
+    }
+
+    public void clearRespawnCooldown(@NotNull UUID uuid) {
+        respawnCooldown.remove(uuid);
     }
 
     public void setHotbarManager(@Nullable HotbarManager hotbarManager) {

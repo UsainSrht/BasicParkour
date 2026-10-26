@@ -643,6 +643,40 @@ public final class BasicParkourCommand {
                             return Command.SINGLE_SUCCESS;
                         })));
 
+        // debug [on|off|toggle|console|<player>] (admin)
+        root.then(Commands.literal("debug")
+                .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
+                .executes(ctx -> {
+                    cmdDebug(ctx.getSource().getSender(), null, null);
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("action", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            builder.suggest("on");
+                            builder.suggest("off");
+                            builder.suggest("toggle");
+                            builder.suggest("console");
+                            Bukkit.getOnlinePlayers().forEach(p -> builder.suggest(p.getName()));
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            cmdDebug(ctx.getSource().getSender(), StringArgumentType.getString(ctx, "action"), null);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("subAction", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    builder.suggest("on");
+                                    builder.suggest("off");
+                                    builder.suggest("toggle");
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    cmdDebug(ctx.getSource().getSender(),
+                                            StringArgumentType.getString(ctx, "action"),
+                                            StringArgumentType.getString(ctx, "subAction"));
+                                    return Command.SINGLE_SUCCESS;
+                                }))));
+
         // Register root node
         registrar.register(
                 root.build(),
@@ -1315,6 +1349,75 @@ public final class BasicParkourCommand {
         }
     }
 
+    private void cmdDebug(@NotNull CommandSender sender, @Nullable String action, @Nullable String subAction) {
+        var debugMgr = plugin.getDebugManager();
+        if (action == null || action.equalsIgnoreCase("toggle")) {
+            if (sender instanceof Player player) {
+                debugMgr.toggleDebug(player);
+            } else {
+                boolean now = debugMgr.toggleConsoleDebug();
+                send(sender, "<gray>[BasicParkour] Console debug mode is now: " + (now ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</gray>");
+            }
+            return;
+        }
+
+        if (action.equalsIgnoreCase("on")) {
+            if (sender instanceof Player player) {
+                debugMgr.setDebug(player.getUniqueId(), true);
+                send(player, "<green>[BasicParkour] Debug mode <bold>ENABLED</bold>!</green>");
+            } else {
+                debugMgr.setConsoleDebug(true);
+                send(sender, "<green>[BasicParkour] Console debug mode <bold>ENABLED</bold>!</green>");
+            }
+            return;
+        }
+
+        if (action.equalsIgnoreCase("off")) {
+            if (sender instanceof Player player) {
+                debugMgr.setDebug(player.getUniqueId(), false);
+                send(player, "<red>[BasicParkour] Debug mode <bold>DISABLED</bold>.</red>");
+            } else {
+                debugMgr.setConsoleDebug(false);
+                send(sender, "<red>[BasicParkour] Console debug mode <bold>DISABLED</bold>.</red>");
+            }
+            return;
+        }
+
+        if (action.equalsIgnoreCase("console")) {
+            if (subAction == null || subAction.equalsIgnoreCase("toggle")) {
+                boolean now = debugMgr.toggleConsoleDebug();
+                send(sender, "<gray>[BasicParkour] Console debug mode is now: " + (now ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</gray>");
+            } else if (subAction.equalsIgnoreCase("on")) {
+                debugMgr.setConsoleDebug(true);
+                send(sender, "<green>[BasicParkour] Console debug mode <bold>ENABLED</bold>!</green>");
+            } else if (subAction.equalsIgnoreCase("off")) {
+                debugMgr.setConsoleDebug(false);
+                send(sender, "<red>[BasicParkour] Console debug mode <bold>DISABLED</bold>.</red>");
+            }
+            return;
+        }
+
+        // Target player specified: /bp debug <player> [on|off|toggle]
+        Player target = Bukkit.getPlayerExact(action);
+        if (target == null) {
+            send(sender, "<red>Player '" + action + "' not found.</red>");
+            return;
+        }
+
+        if (subAction == null || subAction.equalsIgnoreCase("toggle")) {
+            boolean now = debugMgr.toggleDebug(target);
+            send(sender, "<gray>[BasicParkour] Debug mode for <white>" + target.getName() + "</white> is now: " + (now ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</gray>");
+        } else if (subAction.equalsIgnoreCase("on")) {
+            debugMgr.setDebug(target.getUniqueId(), true);
+            send(target, "<green>[BasicParkour] Debug mode enabled by administrator.</green>");
+            send(sender, "<gray>[BasicParkour] Debug mode for <white>" + target.getName() + "</white>: <green>ENABLED</green></gray>");
+        } else if (subAction.equalsIgnoreCase("off")) {
+            debugMgr.setDebug(target.getUniqueId(), false);
+            send(target, "<red>[BasicParkour] Debug mode disabled by administrator.</red>");
+            send(sender, "<gray>[BasicParkour] Debug mode for <white>" + target.getName() + "</white>: <red>DISABLED</red></gray>");
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Help
     // -----------------------------------------------------------------------
@@ -1350,6 +1453,7 @@ public final class BasicParkourCommand {
             send(sender, "<gray>/" + r + " setcompleteloc [templateId|global]</gray> — set complete teleport location");
             send(sender, "<gray>/" + r + " hologram <create|remove|refresh|list></gray> — manage holograms");
             send(sender, "<gray>/" + r + " npc <link|unlink|topholder|list></gray> — manage NPCs");
+            send(sender, "<gray>/" + r + " debug [on|off|console|<player>]</gray> — toggle parkour debug diagnostics");
         }
     }
 

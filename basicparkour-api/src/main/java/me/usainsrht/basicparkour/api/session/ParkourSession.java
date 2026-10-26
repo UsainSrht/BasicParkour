@@ -135,6 +135,16 @@ public interface ParkourSession {
     void fail(@NotNull FailReason reason);
 
     /**
+     * Immediately fails this session with an optional diagnostic detail message.
+     *
+     * @param reason the reason for the failure
+     * @param detail optional diagnostic information (e.g. block type, coordinates, fall distance)
+     */
+    default void fail(@NotNull FailReason reason, @Nullable String detail) {
+        fail(reason);
+    }
+
+    /**
      * Marks this session as complete. Saves the record asynchronously,
      * runs reward commands, and fires {@link CourseCompleteEvent}.
      *

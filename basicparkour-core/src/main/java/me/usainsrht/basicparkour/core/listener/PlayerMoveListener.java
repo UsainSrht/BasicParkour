@@ -1,5 +1,6 @@
 package me.usainsrht.basicparkour.core.listener;
 
+import me.usainsrht.basicparkour.api.course.CourseRegion;
 import me.usainsrht.basicparkour.api.course.ParkourCourse;
 import me.usainsrht.basicparkour.api.modifier.BlockModifier;
 import me.usainsrht.basicparkour.api.session.ParkourSession;
@@ -7,6 +8,7 @@ import me.usainsrht.basicparkour.api.session.SessionState;
 import me.usainsrht.basicparkour.core.BasicParkourPlugin;
 import me.usainsrht.basicparkour.core.session.SessionManager;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -15,7 +17,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Core movement listener that drives the parkour game loop.
@@ -84,11 +88,19 @@ public final class PlayerMoveListener implements Listener {
 
         ParkourCourse course = session.getCourse();
 
+        boolean inStart = isInStartRegion(course, player, to);
+        boolean inCp = isInCurrentCheckpointRegion(session, player, to);
+        boolean respawnImmune = sessionManager.isRespawnImmune(player.getUniqueId());
+
+        if (plugin.getDebugManager().isDebug(player)) {
+            plugin.getDebugManager().sendLiveActionBar(player, session, to, inStart, inCp, respawnImmune);
+        }
+
         // ── 0. Anti-flight check ─────────────────────────────────────────────
         if (plugin.getConfig().getBoolean("restrictions.disable-flight", true) && player.isFlying()) {
             player.setAllowFlight(false);
             player.setFlying(false);
-            sessionManager.failSession(player, ParkourSession.FailReason.VOID);
+            sessionManager.failSession(player, ParkourSession.FailReason.VOID, "Anti-flight triggered (player.isFlying=true)");
             return;
         }
 
@@ -129,6 +141,11 @@ public final class PlayerMoveListener implements Listener {
             });
         }
 
+        // Skip fail checks if player has respawn immunity
+        if (respawnImmune) {
+            return;
+        }
+
         // ── 3. Void check ────────────────────────────────────────────────────
         double failY = to.getWorld().getMinHeight() - 5;
         if (course.getMinY().isPresent()) {
@@ -148,7 +165,8 @@ public final class PlayerMoveListener implements Listener {
         }
         
         if (to.getY() < failY) {
-            sessionManager.failSession(player, ParkourSession.FailReason.VOID);
+            sessionManager.failSession(player, ParkourSession.FailReason.VOID,
+                String.format(java.util.Locale.ROOT, "Player Y (%.2f) below failY threshold (%.2f)", to.getY(), failY));
             return;
         }
 
@@ -157,21 +175,9 @@ public final class PlayerMoveListener implements Listener {
         if (session.getState() != SessionState.ACTIVE) return;
 
         // ── 5. Blocklist check ────────────────────────────────────────────────
-        Block feetBlock = to.getBlock().getRelative(0, -1, 0);
-        if (!feetBlock.isEmpty()) {
-            java.util.Set<org.bukkit.Material> blockList = course.getBlockList();
-            boolean isListed = blockList.contains(feetBlock.getType());
-            if (course.getBlockListMode() == me.usainsrht.basicparkour.api.course.BlockListMode.BLACKLIST) {
-                if (isListed) {
-                    sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST);
-                    return;
-                }
-            } else if (course.getBlockListMode() == me.usainsrht.basicparkour.api.course.BlockListMode.WHITELIST) {
-                if (!isListed && !blockList.isEmpty()) {
-                    sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST);
-                    return;
-                }
-            }
+        // Ignore blocklist checks while inside the start region or at the current checkpoint
+        if (!inStart && !inCp) {
+            checkBlockList(player, session, course, to);
         }
     }
 
@@ -182,8 +188,9 @@ public final class PlayerMoveListener implements Listener {
     private void checkModifiers(@NotNull Player player,
                                  @NotNull ParkourSession session,
                                  @NotNull Location to) {
-        // Check the block the player is standing on (feet block - 1)
-        Block feetBlock = to.getBlock().getRelative(0, -1, 0);
+        Block atFeet = to.getBlock();
+        Block belowFeet = to.clone().subtract(0, 0.1, 0).getBlock();
+        Block feetBlock = !atFeet.isEmpty() ? atFeet : belowFeet;
         Block headBlock = to.clone().add(0, 1, 0).getBlock();
 
         ParkourCourse course = session.getCourse();
@@ -246,6 +253,154 @@ public final class PlayerMoveListener implements Listener {
                 }
             }
         }
+    }
+
+    private boolean isInStartRegion(@NotNull ParkourCourse course, @NotNull Player player, @NotNull Location loc) {
+        CourseRegion start = course.getStartRegion();
+        if (loc.getWorld() == null || !course.getWorldName().equals(loc.getWorld().getName())) return false;
+        if (start.overlaps(player.getBoundingBox()) || start.contains(loc)) return true;
+        double x = loc.getX();
+        double y = loc.getY();
+        double z = loc.getZ();
+        return x >= (start.getMin().getX() - 0.3) && x <= (start.getMax().getX() + 0.3)
+            && z >= (start.getMin().getZ() - 0.3) && z <= (start.getMax().getZ() + 0.3)
+            && y >= (start.getMin().getY() - 0.5) && y <= (start.getMax().getY() + 2.5);
+    }
+
+    private boolean isInCurrentCheckpointRegion(@NotNull ParkourSession session, @NotNull Player player, @NotNull Location loc) {
+        return session.getLastCheckpoint().map(cp -> {
+            CourseRegion region = cp.getTriggerRegion();
+            if (loc.getWorld() == null || !region.getMin().getWorld().equals(loc.getWorld())) return false;
+            if (region.overlaps(player.getBoundingBox()) || region.contains(loc)) return true;
+            double x = loc.getX();
+            double y = loc.getY();
+            double z = loc.getZ();
+            return x >= (region.getMin().getX() - 0.3) && x <= (region.getMax().getX() + 0.3)
+                && z >= (region.getMin().getZ() - 0.3) && z <= (region.getMax().getZ() + 0.3)
+                && y >= (region.getMin().getY() - 0.5) && y <= (region.getMax().getY() + 2.5);
+        }).orElse(false);
+    }
+
+    private void checkBlockList(@NotNull Player player,
+                                @NotNull ParkourSession session,
+                                @NotNull ParkourCourse course,
+                                @NotNull Location to) {
+        Set<Material> blockList = course.getBlockList();
+        if (blockList.isEmpty()) return;
+
+        me.usainsrht.basicparkour.api.course.BlockListMode mode = course.getBlockListMode();
+
+        // 1. Liquids (water, lava, etc.)
+        Block inBlock = to.getBlock();
+        if (inBlock.isLiquid()) {
+            boolean isListed = blockList.contains(inBlock.getType());
+            if (mode == me.usainsrht.basicparkour.api.course.BlockListMode.BLACKLIST && isListed) {
+                sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST,
+                    "In blacklisted liquid: " + inBlock.getType());
+                return;
+            } else if (mode == me.usainsrht.basicparkour.api.course.BlockListMode.WHITELIST && !isListed) {
+                sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST,
+                    "In non-whitelisted liquid: " + inBlock.getType());
+                return;
+            }
+        }
+
+        // 2. Blacklist mode body contact (e.g. touching fire or blacklisted block)
+        if (mode == me.usainsrht.basicparkour.api.course.BlockListMode.BLACKLIST) {
+            if (blockList.contains(inBlock.getType())) {
+                sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST,
+                    "Body contact with blacklisted block: " + inBlock.getType());
+                return;
+            }
+        }
+
+        // 3. Ground / standing check (only applies when player is on ground / stepping on blocks)
+        if (player.isOnGround()) {
+            Block centerFeet = to.getBlock();
+            Block centerUnder = to.clone().subtract(0, 0.1, 0).getBlock();
+            Block centerSupporting = !centerFeet.isEmpty() && !centerFeet.isPassable() ? centerFeet : centerUnder;
+            Material centerMat = centerSupporting.getType();
+
+            Set<Material> standingMats = getStandingMaterials(player, to);
+
+            if (mode == me.usainsrht.basicparkour.api.course.BlockListMode.BLACKLIST) {
+                if (blockList.contains(centerMat)) {
+                    sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST,
+                        "Standing on blacklisted block: " + centerMat);
+                    return;
+                }
+                for (Material mat : standingMats) {
+                    if (blockList.contains(mat)) {
+                        sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST,
+                            "Hitbox touches blacklisted block: " + mat);
+                        return;
+                    }
+                }
+            } else if (mode == me.usainsrht.basicparkour.api.course.BlockListMode.WHITELIST) {
+                // If the block directly supporting player's center is whitelisted, this is a VALID jump!
+                if (!centerSupporting.isEmpty() && blockList.contains(centerMat)) {
+                    return; // Player landed squarely on a whitelisted block!
+                }
+
+                // If center is over air (edge overhang), check if ANY supporting block is whitelisted
+                if (centerSupporting.isEmpty()) {
+                    boolean hasWhitelisted = false;
+                    for (Material mat : standingMats) {
+                        if (blockList.contains(mat)) {
+                            hasWhitelisted = true;
+                            break;
+                        }
+                    }
+                    if (hasWhitelisted) {
+                        return; // Catching edge of a whitelisted block over air
+                    }
+                    if (!standingMats.isEmpty()) {
+                        sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST,
+                            "Not on whitelisted block. Standing on: " + standingMats + " (whitelist: " + blockList + ")");
+                        return;
+                    }
+                } else {
+                    // Center supporting block is solid and NOT in whitelist (e.g. landed on forbidden floor)
+                    sessionManager.failSession(player, ParkourSession.FailReason.BLOCK_LIST,
+                        "Standing on forbidden block " + centerMat + " (not in whitelist: " + blockList + ")");
+                    return;
+                }
+            }
+        }
+    }
+
+    @NotNull
+    private Set<Material> getStandingMaterials(@NotNull Player player, @NotNull Location to) {
+        Set<Material> mats = new HashSet<>();
+        org.bukkit.util.BoundingBox box = player.getBoundingBox();
+
+        double minX = box.getMinX() + 0.05;
+        double maxX = box.getMaxX() - 0.05;
+        double minZ = box.getMinZ() + 0.05;
+        double maxZ = box.getMaxZ() - 0.05;
+        double footY = to.getY();
+
+        double[] sampleX = (minX < maxX) ? new double[]{minX, (minX + maxX) / 2.0, maxX} : new double[]{to.getX()};
+        double[] sampleZ = (minZ < maxZ) ? new double[]{minZ, (minZ + maxZ) / 2.0, maxZ} : new double[]{to.getZ()};
+
+        org.bukkit.World world = to.getWorld();
+        if (world == null) return mats;
+
+        for (double sx : sampleX) {
+            for (double sz : sampleZ) {
+                Location sampleLoc = new Location(world, sx, footY, sz);
+                Block atFeet = sampleLoc.getBlock();
+                if (!atFeet.isEmpty() && !atFeet.isPassable()) {
+                    mats.add(atFeet.getType());
+                } else {
+                    Block underFeet = sampleLoc.clone().subtract(0, 0.1, 0).getBlock();
+                    if (!underFeet.isEmpty()) {
+                        mats.add(underFeet.getType());
+                    }
+                }
+            }
+        }
+        return mats;
     }
 
     // -----------------------------------------------------------------------

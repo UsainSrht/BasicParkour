@@ -277,7 +277,12 @@ public final class ParkourSessionImpl implements ParkourSession {
 
     @Override
     public void fail(@NotNull FailReason reason) {
-        sessionManager.failSession(player, reason);
+        fail(reason, null);
+    }
+
+    @Override
+    public void fail(@NotNull FailReason reason, @Nullable String detail) {
+        sessionManager.failSession(player, reason, detail);
     }
 
     @Override
