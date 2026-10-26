@@ -7,15 +7,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Handles player disconnection during an active session.
- *
- * <p>Restores player inventory and survival state, and teleports them to their
- * pre-parkour join location if teleport-on-leave is enabled so they do not log back
- * in stranded on the parkour course.</p>
+ * Handles player connection events (quit, join, world change) during active sessions
+ * and updates player visibility state.
  */
 public final class PlayerQuitListener implements Listener {
 
@@ -37,6 +36,17 @@ public final class PlayerQuitListener implements Listener {
                 player.teleport(joinLoc);
             }
         });
+        sessionManager.handlePlayerQuitCleanup(player.getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onJoin(@NotNull PlayerJoinEvent event) {
+        sessionManager.handlePlayerJoinOrWorldChange(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onWorldChange(@NotNull PlayerChangedWorldEvent event) {
+        sessionManager.handlePlayerJoinOrWorldChange(event.getPlayer());
     }
 }
 

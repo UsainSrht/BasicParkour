@@ -1068,39 +1068,76 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     /** Tracks which players were hidden from which viewers by BasicParkour. */
     private final Map<UUID, Set<UUID>> hiddenByParkour = new ConcurrentHashMap<>();
 
-    private void applyVisibility(@NotNull Player newPlayer) {
-        String mode = getVisibilityMode(newPlayer);
+    /**
+     * Restores all players that were hidden by the given viewer.
+     */
+    private void restoreHiddenByViewer(@NotNull Player viewer) {
+        Set<UUID> hidden = hiddenByParkour.remove(viewer.getUniqueId());
+        if (hidden != null) {
+            for (UUID targetUuid : hidden) {
+                Player target = Bukkit.getPlayer(targetUuid);
+                if (target != null && target.isOnline()) {
+                    viewer.showPlayer(plugin, target);
+                }
+            }
+        }
+    }
+
+    private void applyVisibility(@NotNull Player player) {
+        // First restore any previous hiding by this player (e.g. if cycling visibility mode)
+        restoreHiddenByViewer(player);
+
+        String mode = getVisibilityMode(player);
         if (mode.equals("TRANSLUCENT")) {
-            newPlayer.addPotionEffect(new org.bukkit.potion.PotionEffect(
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
                 org.bukkit.potion.PotionEffectType.INVISIBILITY,
                 org.bukkit.potion.PotionEffect.INFINITE_DURATION,
                 0, false, false, false
             ));
         } else {
-            newPlayer.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
+            player.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
         }
 
-        // Hide other parkour runners in the same world from each other, safely respecting Paper's vanish API
-        for (ParkourSessionImpl other : sessions.values()) {
-            Player otherPlayer = other.getPlayer();
-            if (otherPlayer.equals(newPlayer)) continue;
-            if (!otherPlayer.isOnline()) continue;
-            if (!otherPlayer.getWorld().equals(newPlayer.getWorld())) continue;
+        if (mode.equals("NONE")) {
+            // Player in parkour sees NO ONE (all other players in the same world are hidden from player)
+            for (Player other : player.getWorld().getPlayers()) {
+                if (other.equals(player)) continue;
+                if (!other.isOnline()) continue;
 
-            // Only hide if Paper vanish API says player is currently visible
-            if (newPlayer.canSee(otherPlayer)) {
-                newPlayer.hidePlayer(plugin, otherPlayer);
-                hiddenByParkour.computeIfAbsent(newPlayer.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(otherPlayer.getUniqueId());
+                // Safely respect Paper vanish API
+                if (player.canSee(other)) {
+                    player.hidePlayer(plugin, other);
+                    hiddenByParkour.computeIfAbsent(player.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(other.getUniqueId());
+                }
+
+                // If other runner is also in parkour with NONE mode, other runner should also hide player
+                if (sessions.containsKey(other.getUniqueId()) && "NONE".equals(getVisibilityMode(other))) {
+                    if (other.canSee(player)) {
+                        other.hidePlayer(plugin, player);
+                        hiddenByParkour.computeIfAbsent(other.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(player.getUniqueId());
+                    }
+                }
             }
-            if (otherPlayer.canSee(newPlayer)) {
-                otherPlayer.hidePlayer(plugin, newPlayer);
-                hiddenByParkour.computeIfAbsent(otherPlayer.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(newPlayer.getUniqueId());
+        } else {
+            // Mode ALL or TRANSLUCENT:
+            // If another active runner has mode NONE, ensure they hide this player
+            for (ParkourSessionImpl otherSession : sessions.values()) {
+                Player otherPlayer = otherSession.getPlayer();
+                if (otherPlayer.equals(player) || !otherPlayer.isOnline()) continue;
+                if (!otherPlayer.getWorld().equals(player.getWorld())) continue;
+
+                if ("NONE".equals(getVisibilityMode(otherPlayer))) {
+                    if (otherPlayer.canSee(player)) {
+                        otherPlayer.hidePlayer(plugin, player);
+                        hiddenByParkour.computeIfAbsent(otherPlayer.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(player.getUniqueId());
+                    }
+                }
             }
         }
 
         // Hide blocks of other generated parkour runs in the same world
         if (plugin.getGeneratorManager() != null) {
-            plugin.getGeneratorManager().updateBlockVisibilityForPlayer(newPlayer);
+            plugin.getGeneratorManager().updateBlockVisibilityForPlayer(player);
         }
     }
 
@@ -1108,16 +1145,8 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         leavingPlayer.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
         playerVisibilityModes.remove(leavingPlayer.getUniqueId());
 
-        // Restore players that this leaving player had hidden (safely, only those hidden by BasicParkour)
-        Set<UUID> hiddenByLeaving = hiddenByParkour.remove(leavingPlayer.getUniqueId());
-        if (hiddenByLeaving != null) {
-            for (UUID targetUuid : hiddenByLeaving) {
-                Player target = Bukkit.getPlayer(targetUuid);
-                if (target != null && target.isOnline()) {
-                    leavingPlayer.showPlayer(plugin, target);
-                }
-            }
-        }
+        // Restore players that this leaving player had hidden
+        restoreHiddenByViewer(leavingPlayer);
 
         // Restore this leaving player to any other players who hid them via BasicParkour
         for (Map.Entry<UUID, Set<UUID>> entry : hiddenByParkour.entrySet()) {
@@ -1133,5 +1162,35 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         if (plugin.getGeneratorManager() != null) {
             plugin.getGeneratorManager().updateBlockVisibilityForPlayer(leavingPlayer);
         }
+    }
+
+    /**
+     * Handles when a player joins the server or changes world, hiding them from active parkour
+     * runners whose visibility mode is NONE.
+     */
+    public void handlePlayerJoinOrWorldChange(@NotNull Player player) {
+        for (ParkourSessionImpl session : sessions.values()) {
+            Player runner = session.getPlayer();
+            if (runner.equals(player) || !runner.isOnline()) continue;
+            if (!runner.getWorld().equals(player.getWorld())) continue;
+
+            if ("NONE".equals(getVisibilityMode(runner))) {
+                if (runner.canSee(player)) {
+                    runner.hidePlayer(plugin, player);
+                    hiddenByParkour.computeIfAbsent(runner.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(player.getUniqueId());
+                }
+            }
+        }
+    }
+
+    /**
+     * Cleans up tracking data when a player disconnects.
+     */
+    public void handlePlayerQuitCleanup(@NotNull UUID playerUuid) {
+        hiddenByParkour.remove(playerUuid);
+        for (Set<UUID> set : hiddenByParkour.values()) {
+            set.remove(playerUuid);
+        }
+        playerVisibilityModes.remove(playerUuid);
     }
 }

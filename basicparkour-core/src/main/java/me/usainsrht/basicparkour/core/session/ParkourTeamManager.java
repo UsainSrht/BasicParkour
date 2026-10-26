@@ -53,9 +53,7 @@ public final class ParkourTeamManager {
         if (team != null) {
             team.addEntity(player);
         }
-        if (isFolia) {
-            scheduler.runOnEntity(player, () -> player.setCollidable(false));
-        }
+        scheduler.runOnEntity(player, () -> player.setCollidable(false));
     }
 
     /**
@@ -67,9 +65,7 @@ public final class ParkourTeamManager {
         if (team != null) {
             team.removeEntity(player);
         }
-        if (isFolia) {
-            scheduler.runOnEntity(player, () -> player.setCollidable(true));
-        }
+        scheduler.runOnEntity(player, () -> player.setCollidable(true));
     }
 
     /**

@@ -48,9 +48,11 @@ storage:
 visibility:
   # Default visibility mode for players in active parkour sessions.
   # Options:
-  #   ALL         - Players see everyone normally (isolated from other parkour runners at same location).
+  #   NONE        - Player in parkour sees NO ONE (all players hidden from their view).
+  #                 Spectators outside parkour CAN still see them doing the parkour!
+  #                 Collision is fully disabled. Recommended for spawn parkour!
+  #   ALL         - Players see everyone normally (isolated from other parkour runners on the same course).
   #   TRANSLUCENT - Other players appear as semi-transparent ghosts via scoreboard teams and invisibility.
-  #   NONE        - Other players are completely hidden from view.
   # Note: Players can also cycle their visibility with /pk visibility or the hotbar item.
   default: ALL
 
