@@ -30,9 +30,9 @@ public final class DebugManager {
     private static final MiniMessage MINI = MiniMessage.miniMessage();
 
     private final BasicParkourPlugin plugin;
-    private final Set<UUID> debugPlayers = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Long> lastActionBarUpdate = new ConcurrentHashMap<>();
-    private volatile boolean consoleDebug = false;
+    /** System-wide debug switch: when on, output goes to the console and every online admin. */
+    private volatile boolean enabled = false;
 
     public DebugManager(@NotNull BasicParkourPlugin plugin) {
         this.plugin = plugin;
@@ -42,76 +42,53 @@ public final class DebugManager {
     // Debug toggle & status
     // -------------------------------------------------------------------------
 
-    public boolean isDebug(@NotNull UUID uuid) {
-        return debugPlayers.contains(uuid);
+    public boolean isEnabled() {
+        return enabled;
     }
 
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (!enabled) lastActionBarUpdate.clear();
+    }
+
+    public boolean toggle() {
+        setEnabled(!enabled);
+        return enabled;
+    }
+
+    private boolean isAdmin(@NotNull Player player) {
+        return player.hasPermission(plugin.getCommandConfig().getPermAdmin());
+    }
+
+    /** True when debug is on system-wide and the player is an admin (receives debug output). */
     public boolean isDebug(@Nullable Player player) {
-        return player != null && isDebug(player.getUniqueId());
-    }
-
-    public boolean toggleDebug(@NotNull Player player) {
-        UUID uuid = player.getUniqueId();
-        if (debugPlayers.contains(uuid)) {
-            debugPlayers.remove(uuid);
-            lastActionBarUpdate.remove(uuid);
-            player.sendMessage(MINI.deserialize("<red>[BasicParkour] Debug mode disabled.</red>"));
-            return false;
-        } else {
-            debugPlayers.add(uuid);
-            player.sendMessage(MINI.deserialize(
-                "<green>[BasicParkour] Debug mode <bold>ENABLED</bold>!</green>\n"
-                + "<gray>• Live action-bar HUD is active during parkour runs.\n"
-                + "• Full diagnostic reports will be sent on fail/checkpoint/start events.</gray>"
-            ));
-            return true;
-        }
-    }
-
-    public void setDebug(@NotNull UUID uuid, boolean enabled) {
-        if (enabled) {
-            debugPlayers.add(uuid);
-        } else {
-            debugPlayers.remove(uuid);
-            lastActionBarUpdate.remove(uuid);
-        }
-    }
-
-    public boolean isConsoleDebug() {
-        return consoleDebug;
-    }
-
-    public void setConsoleDebug(boolean enabled) {
-        this.consoleDebug = enabled;
-    }
-
-    public boolean toggleConsoleDebug() {
-        this.consoleDebug = !this.consoleDebug;
-        return this.consoleDebug;
+        return enabled && player != null && isAdmin(player);
     }
 
     public boolean hasAnyDebugSubscriber() {
-        return consoleDebug || !debugPlayers.isEmpty();
+        return enabled;
     }
 
     // -------------------------------------------------------------------------
-    // Broadcast helper
+    // Broadcast helpers
     // -------------------------------------------------------------------------
 
     private void broadcast(@Nullable Player contextPlayer, @NotNull Component message) {
-        if (contextPlayer != null && isDebug(contextPlayer)) {
-            contextPlayer.sendMessage(message);
+        if (!enabled) return;
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (isAdmin(online)) online.sendMessage(message);
         }
-        for (UUID uuid : debugPlayers) {
-            if (contextPlayer != null && contextPlayer.getUniqueId().equals(uuid)) continue;
-            Player other = Bukkit.getPlayer(uuid);
-            if (other != null && other.isOnline()) {
-                other.sendMessage(message);
-            }
-        }
-        if (consoleDebug) {
-            plugin.getComponentLogger().info(message);
-        }
+        plugin.getComponentLogger().info(message);
+    }
+
+    /**
+     * Logs a free-form debug line (MiniMessage allowed) to the console and online admins.
+     * Cheap no-op when debug mode is off. Safe to call from any thread.
+     */
+    public void log(@NotNull String category, @NotNull String message) {
+        if (!enabled) return;
+        broadcast(null, MINI.deserialize("<gray>[BasicParkour Debug] <gold>" + category + ":</gold> "
+            + MINI.escapeTags(message) + "</gray>"));
     }
 
     // -------------------------------------------------------------------------

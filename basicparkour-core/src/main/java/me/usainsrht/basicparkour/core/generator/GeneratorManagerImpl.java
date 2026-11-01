@@ -326,24 +326,40 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         GeneratedCourseInstanceImpl instance = new GeneratedCourseInstanceImpl(course, data.seed());
 
         // Stage all blocks into the instance's placed list (still async — no world reads)
+        // In endless (sliding window) runs the platforms after the start platform appear with the
+        // configured animation once the session has started, exactly like platforms generated later.
+        final boolean animateInitial = template.blockMode() == BlockMode.SLIDING_WINDOW
+            && template.appearAnimation() != BlockAppearAnimation.NONE;
+        final List<JumpToJumpAlgorithm.GeneratedPlatform> animatedPlatforms = new ArrayList<>();
+        final List<PlacedBlock> instantBlocks = new ArrayList<>();
+
+        int platformNo = 0;
         for (JumpToJumpAlgorithm.GeneratedPlatform platform : data.platforms()) {
             for (PlacedBlock pb : platform.placedBlocks()) {
                 instance.placedBlocks.add(pb);
             }
+            if (animateInitial && platformNo > 0) {
+                animatedPlatforms.add(platform);
+            } else {
+                instantBlocks.addAll(platform.placedBlocks());
+            }
+            platformNo++;
             instance.placedPlatformCount.incrementAndGet();
         }
+
+        plugin.getDebugManager().log("Generator", "course " + data.courseId() + " for " + player.getName()
+            + ": " + data.platforms().size() + " platforms (" + animatedPlatforms.size() + " animated), "
+            + instantBlocks.size() + " blocks placed instantly, seed=" + data.seed());
 
         // ── Dispatch one placement task per unique chunk, on its region thread ──
         // Group blocks by chunk key so we make one runAtLocation call per chunk
         Map<String, List<PlacedBlock>> byChunk = new LinkedHashMap<>();
-        synchronized (instance.placedBlocks) {
-            for (PlacedBlock pb : instance.placedBlocks) {
-                // Use bit-shift arithmetic instead of getChunk() to avoid Folia's main-thread check
-                int cx = pb.location().getBlockX() >> 4;
-                int cz = pb.location().getBlockZ() >> 4;
-                String chunkKey = pb.location().getWorld().getName() + "," + cx + "," + cz;
-                byChunk.computeIfAbsent(chunkKey, k -> new ArrayList<>()).add(pb);
-            }
+        for (PlacedBlock pb : instantBlocks) {
+            // Use bit-shift arithmetic instead of getChunk() to avoid Folia's main-thread check
+            int cx = pb.location().getBlockX() >> 4;
+            int cz = pb.location().getBlockZ() >> 4;
+            String chunkKey = pb.location().getWorld().getName() + "," + cx + "," + cz;
+            byChunk.computeIfAbsent(chunkKey, k -> new ArrayList<>()).add(pb);
         }
 
         List<CompletableFuture<Void>> placeFutures = new ArrayList<>();
@@ -356,9 +372,11 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                     instance.placeBlock(pb);   // reads original + sets desired — on region thread
                     hideBlockFromOtherRunners(pb, instance);
                 }
-                plugin.getLogger().info("[Generator][debug] " + data.courseId() + " placed " + chunk.size()
-                    + " blocks, e.g. " + chunk.get(0).location().getBlock().getType() + " at "
-                    + chunk.get(0).location().toVector() + " (wanted " + chunk.get(0).desiredMaterial() + ")");
+                if (plugin.getDebugManager().isEnabled()) {
+                    plugin.getDebugManager().log("Generator", data.courseId() + " placed " + chunk.size()
+                        + " blocks, e.g. " + chunk.get(0).location().getBlock().getType() + " at "
+                        + chunk.get(0).location().toVector() + " (wanted " + chunk.get(0).desiredMaterial() + ")");
+                }
                 f.complete(null);
             });
             placeFutures.add(f);
@@ -373,6 +391,33 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         // ── Wait for all placements, then start session on entity thread ───
         final Location finalLastCenter = data.platforms().get(data.platforms().size() - 1).centerLocation().clone();
         final float    finalLastYaw    = data.platforms().get(data.platforms().size() - 1).outgoingYawDeg();
+
+        final Runnable animateInitialPlatforms = () -> {
+            if (animatedPlatforms.isEmpty()) return;
+            BlockAnimationHandler handler = BlockAnimationHandler.of(template.appearAnimation());
+            List<JumpToJumpAlgorithm.GeneratedPlatform> all = data.platforms();
+            for (int i = 0; i < animatedPlatforms.size(); i++) {
+                JumpToJumpAlgorithm.GeneratedPlatform platform = animatedPlatforms.get(i);
+                // animatedPlatforms[i] is platform i+1; it grows out of the previous platform
+                final Location prevCenter = all.get(i).centerLocation().clone();
+                Map<String, List<PlacedBlock>> chunks = new LinkedHashMap<>();
+                for (PlacedBlock pb : platform.placedBlocks()) {
+                    String key = pb.location().getWorld().getName() + ","
+                        + (pb.location().getBlockX() >> 4) + "," + (pb.location().getBlockZ() >> 4);
+                    chunks.computeIfAbsent(key, k -> new ArrayList<>()).add(pb);
+                }
+                long delay = 1L + i * 2L; // small stagger so platforms pop in one after another
+                for (List<PlacedBlock> blocks : chunks.values()) {
+                    scheduler.runAtLocationLater(blocks.get(0).location(), () -> {
+                        if (!instance.isActive()) return;
+                        for (PlacedBlock pb : blocks) {
+                            handler.animateAndPlace(instance, pb, prevCenter, scheduler, () ->
+                                hideBlockFromOtherRunners(pb, instance));
+                        }
+                    }, delay);
+                }
+            }
+        };
 
         return CompletableFuture.allOf(placeFutures.toArray(new CompletableFuture[0]))
             .thenCompose(_v -> {
@@ -403,6 +448,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                                 data.rng(), finalLastCenter, finalLastYaw, data.initialYaw(),
                                 data.startLoc(), data.platforms());
                         }
+                        animateInitialPlatforms.run();
                     } else {
                         Location spawn = data.platforms().get(0).checkpoint().getSpawnLocation();
                         player.teleportAsync(spawn).thenRun(() ->
@@ -415,6 +461,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                                         data.rng(), finalLastCenter, finalLastYaw, data.initialYaw(),
                                         data.startLoc(), data.platforms());
                                 }
+                                animateInitialPlatforms.run();
                             })
                         );
                     }
@@ -626,7 +673,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             if (alloc != null) alloc.release(slotKey.slotId());
         }
 
-        plugin.getLogger().info("[Generator] Scheduling cleanup for '" + courseId + "' in " + delaySec + "s.");
+        plugin.getDebugManager().log("Generator", "Scheduling cleanup for '" + courseId + "' in " + delaySec + "s.");
 
         // Async delay → then dispatch per-chunk region tasks for the actual restoration
         scheduler.runAsyncLater(() -> dispatchCleanup(instance), delayMs);
@@ -759,7 +806,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                         }
                     }
                 }
-                plugin.getLogger().info("[Generator][debug] visibility update for " + player.getName()
+                plugin.getDebugManager().log("Generator", "visibility update for " + player.getName()
                     + ": inSession=true, myInstance=" + (myInstance != null)
                     + ", ownBlocks=" + (myInstance != null ? myInstance.placedBlocks.size() : -1)
                     + ", instances=" + instances.size());
@@ -767,7 +814,8 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 if (myInstance != null) {
                     synchronized (myInstance.placedBlocks) {
                         for (PlacedBlock pb : myInstance.placedBlocks) {
-                            if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)) {
+                            if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)
+                                && myInstance.desiredAt(pb.location()) != null) { // only already-placed blocks
                                 player.sendBlockChange(pb.location(), pb.desiredMaterial().createBlockData());
                             }
                         }
