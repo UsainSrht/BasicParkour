@@ -356,6 +356,9 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                     instance.placeBlock(pb);   // reads original + sets desired — on region thread
                     hideBlockFromOtherRunners(pb, instance);
                 }
+                plugin.getLogger().info("[Generator][debug] " + data.courseId() + " placed " + chunk.size()
+                    + " blocks, e.g. " + chunk.get(0).location().getBlock().getType() + " at "
+                    + chunk.get(0).location().toVector() + " (wanted " + chunk.get(0).desiredMaterial() + ")");
                 f.complete(null);
             });
             placeFutures.add(f);
@@ -499,8 +502,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             }
         }
         for (List<PlacedBlock> chunk : toRemoveByChunk.values()) {
-            scheduler.runAtLocation(chunk.get(0).location(), () ->
-                instance.restoreChunkBlocks(chunk, plugin.getLogger()));
+            scheduler.runAtLocation(chunk.get(0).location(), () -> restoreChunkShared(chunk, instance));
         }
     }
 
@@ -642,8 +644,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             }
         }
         for (List<PlacedBlock> chunk : byChunk.values()) {
-            scheduler.runAtLocation(chunk.get(0).location(), () ->
-                instance.restoreChunkBlocks(chunk, plugin.getLogger()));
+            scheduler.runAtLocation(chunk.get(0).location(), () -> restoreChunkShared(chunk, instance));
         }
     }
 
@@ -671,11 +672,66 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             if (!other.isOnline()) continue;
             if (!other.getWorld().equals(world)) continue;
             if (sourceInstance != null && sourceInstance.hasPlayer(other)) continue;
+            // If the other runner has their own block at this exact spot, it must stay visible
+            GeneratedCourseInstanceImpl otherInst = (GeneratedCourseInstanceImpl) getInstance(other).orElse(null);
+            org.bukkit.Material own = otherInst != null ? otherInst.desiredAt(pb.location()) : null;
+            final org.bukkit.Material show = own != null ? own : org.bukkit.Material.AIR;
             scheduler.runOnEntity(other, () -> {
                 if (other.isOnline()) {
-                    other.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
+                    other.sendBlockChange(pb.location(), show.createBlockData());
                 }
             });
+        }
+    }
+
+    /**
+     * Restores a chunk's worth of blocks, but leaves the real block untouched wherever another
+     * active instance owns the same coordinates (walk-in runs share the same start, so paths overlap).
+     * Must run on the region thread owning the chunk.
+     */
+    private void restoreChunkShared(@NotNull List<PlacedBlock> chunk, @NotNull GeneratedCourseInstanceImpl instance) {
+        List<PlacedBlock> toRestore = new ArrayList<>();
+        for (PlacedBlock pb : chunk) {
+            String key = GeneratedCourseInstanceImpl.locationKey(pb.location());
+            GeneratedCourseInstanceImpl other = null;
+            for (GeneratedCourseInstanceImpl inst : instances.values()) {
+                if (inst != instance && inst.isActive() && inst.desiredAt(pb.location()) != null) { other = inst; break; }
+            }
+            if (other == null) { toRestore.add(pb); continue; }
+
+            org.bukkit.Material orig = instance.originalMaterials.remove(key);
+            instance.desiredByKey.remove(key);
+            instance.placedBlocks.remove(pb);
+            if (other.originalMaterials.get(key) == pb.desiredMaterial()) {
+                other.originalMaterials.put(key, orig != null ? orig : org.bukkit.Material.AIR);
+            }
+            for (Player p : instance.getPlayers()) {
+                if (!p.isOnline() || !p.getWorld().equals(pb.location().getWorld())) continue;
+                scheduler.runOnEntity(p, () -> {
+                    if (p.isOnline()) p.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
+                });
+            }
+        }
+        instance.restoreChunkBlocks(toRestore, plugin.getLogger());
+    }
+
+    /**
+     * After blocks of {@code source} were restored (real world changed for everybody), re-send
+     * blocks that other runners own at the same coordinates so overlapping runs don't erase each other.
+     */
+    private void refreshOverlappingRunners(@NotNull List<PlacedBlock> restored, @NotNull GeneratedCourseInstanceImpl source) {
+        for (GeneratedCourseInstanceImpl inst : instances.values()) {
+            if (inst == source || !inst.isActive()) continue;
+            for (PlacedBlock pb : restored) {
+                org.bukkit.Material own = inst.desiredAt(pb.location());
+                if (own == null) continue;
+                for (Player p : inst.getPlayers()) {
+                    if (!p.isOnline() || !p.getWorld().equals(pb.location().getWorld())) continue;
+                    scheduler.runOnEntity(p, () -> {
+                        if (p.isOnline()) p.sendBlockChange(pb.location(), own.createBlockData());
+                    });
+                }
+            }
         }
     }
 
@@ -696,7 +752,23 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                     synchronized (inst.placedBlocks) {
                         for (PlacedBlock pb : inst.placedBlocks) {
                             if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)) {
+                                // Never hide a spot where my own run has a block
+                                if (myInstance != null && myInstance.desiredAt(pb.location()) != null) continue;
                                 player.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
+                            }
+                        }
+                    }
+                }
+                plugin.getLogger().info("[Generator][debug] visibility update for " + player.getName()
+                    + ": inSession=true, myInstance=" + (myInstance != null)
+                    + ", ownBlocks=" + (myInstance != null ? myInstance.placedBlocks.size() : -1)
+                    + ", instances=" + instances.size());
+                // Make sure my own blocks are shown (earlier hides may have blanked overlapping spots)
+                if (myInstance != null) {
+                    synchronized (myInstance.placedBlocks) {
+                        for (PlacedBlock pb : myInstance.placedBlocks) {
+                            if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)) {
+                                player.sendBlockChange(pb.location(), pb.desiredMaterial().createBlockData());
                             }
                         }
                     }

@@ -49,6 +49,9 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
      */
     final ConcurrentHashMap<String, Material> originalMaterials = new ConcurrentHashMap<>();
 
+    /** Desired material at each currently placed location of this instance. */
+    final ConcurrentHashMap<String, Material> desiredByKey = new ConcurrentHashMap<>();
+
     /** How many platforms have been fully placed. */
     final AtomicInteger placedPlatformCount = new AtomicInteger(0);
 
@@ -138,7 +141,17 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
         org.bukkit.block.Block block = pb.location().getBlock();
         String key = locationKey(pb.location());
         originalMaterials.putIfAbsent(key, block.getType()); // capture original
+        desiredByKey.put(key, pb.desiredMaterial());
         block.setType(pb.desiredMaterial(), false);
+    }
+
+    /**
+     * Material this instance wants at the given location, or null if this instance has no
+     * block there. Used so overlapping instances (same world) never hide each other's own blocks.
+     */
+    @org.jetbrains.annotations.Nullable
+    public Material desiredAt(@NotNull Location loc) {
+        return desiredByKey.get(locationKey(loc));
     }
 
     // ── Cleanup (called on region thread owning each block's chunk) ────────
@@ -165,6 +178,7 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
             placedBlocks.clear();
         }
         originalMaterials.clear();
+        desiredByKey.clear();
         logger.info("[Generator] Restored " + count + " blocks for instance of course '" + course.getId() + "'.");
     }
 
@@ -176,6 +190,7 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
             for (PlacedBlock pb : chunkBlocks) {
                 try {
                     String key = locationKey(pb.location());
+                    desiredByKey.remove(key);
                     Material original = originalMaterials.remove(key);
                     pb.location().getBlock().setType(original != null ? original : Material.AIR, false);
                     placedBlocks.remove(pb);

@@ -236,6 +236,8 @@ public final class PlayerMoveListener implements Listener {
     private void handleStartRegion(@NotNull Player player, @NotNull Location to) {
         if (isStartOnCooldown(player.getUniqueId())) return;
         for (ParkourCourse course : plugin.getBasicParkourAPI().getCourseRegistry().getCourses()) {
+            // Generated courses are private per-player runs; they are only started by the generator
+            if (course instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse) continue;
             // Ensure same world
             if (!course.getWorldName().equals(to.getWorld().getName())) continue;
             if (course.getStartRegion().overlaps(player.getBoundingBox()) || course.getStartRegion().contains(to)) {
