@@ -113,6 +113,28 @@ public final class JumpToJumpAlgorithm {
     }
 
     /**
+     * Generates a platform descriptor for an existing start block (e.g. walk-in portal block).
+     * No blocks are placed into the world because the block already exists.
+     * The platform descriptor contains an empty placed-blocks list and registers Checkpoint 0
+     * tightly enclosing the starting block with spawn directly above it.
+     *
+     * @param world          the world (used only to construct Locations)
+     * @param startLocation  centre of the starting block (beneath the player's feet)
+     * @param initialYawDeg  outgoing heading leaving the starting platform
+     * @return the generated 0th platform descriptor with empty placed blocks
+     */
+    @NotNull
+    public static GeneratedPlatform generateExistingStart(
+        @Nullable World world,
+        @NotNull Location startLocation,
+        float initialYawDeg
+    ) {
+        Location center = startLocation.clone();
+        Checkpoint checkpoint = buildPlatformCheckpoint(world, 0, center, initialYawDeg, List.of());
+        return new GeneratedPlatform(center, List.of(), checkpoint, 0, initialYawDeg);
+    }
+
+    /**
      * Normalizes an angle in degrees to the range (-180, 180].
      */
     public static float normalizeDegrees(float degrees) {
@@ -418,13 +440,46 @@ public final class JumpToJumpAlgorithm {
                 newZ = (int) Math.round(lastCenter.getZ() + (newZ - lastCenter.getZ()) * scale);
             }
 
-            // Verify forward movement when constrained by a directional cone (< 180 degrees)
-            if (directionCone <= 180.0) {
-                double radBase = Math.toRadians(-effectiveBaseYaw);
-                double fwdX = Math.sin(radBase);
-                double fwdZ = Math.cos(radBase);
-                double stepFwd = (newX - lastCenter.getX()) * fwdX + (newZ - lastCenter.getZ()) * fwdZ;
-                if (stepFwd <= 0.05 && attempts < maxAttempts) {
+            // Ensure integer grid separation: at least 1 air block between platform centers
+            int diffX = newX - lastCenter.getBlockX();
+            int diffZ = newZ - lastCenter.getBlockZ();
+            while (Math.max(Math.abs(diffX), Math.abs(diffZ)) < 2) {
+                if (Math.abs(diffX) >= Math.abs(diffZ) && diffX != 0) {
+                    newX += Integer.signum(diffX);
+                } else if (diffZ != 0) {
+                    newZ += Integer.signum(diffZ);
+                } else {
+                    int stepX = (int) Math.round(2.0 * Math.sin(headingRad));
+                    int stepZ = (int) Math.round(2.0 * Math.cos(headingRad));
+                    if (stepX == 0 && stepZ == 0) stepZ = 2;
+                    newX = lastCenter.getBlockX() + stepX;
+                    newZ = lastCenter.getBlockZ() + stepZ;
+                }
+                diffX = newX - lastCenter.getBlockX();
+                diffZ = newZ - lastCenter.getBlockZ();
+            }
+            actualDist = Math.hypot(newX - lastCenter.getX(), newZ - lastCenter.getZ());
+
+            // Re-verify that actualDist didn't exceed maxAllowed after integer grid separation adjustment
+            if (actualDist > maxAllowed && actualDist > 2.0) {
+                if (Math.abs(diffX) >= Math.abs(diffZ)) {
+                    newX = lastCenter.getBlockX() + 2 * (diffX >= 0 ? 1 : -1);
+                    newZ = lastCenter.getBlockZ();
+                } else {
+                    newX = lastCenter.getBlockX();
+                    newZ = lastCenter.getBlockZ() + 2 * (diffZ >= 0 ? 1 : -1);
+                }
+                actualDist = Math.hypot(newX - lastCenter.getX(), newZ - lastCenter.getZ());
+            }
+
+            // Verify forward movement: for jump 1 or when constrained by a directional cone, ensure forward progress
+            double radBase = Math.toRadians(-effectiveBaseYaw);
+            double fwdX = Math.sin(radBase);
+            double fwdZ = Math.cos(radBase);
+            double stepFwd = (newX - lastCenter.getX()) * fwdX + (newZ - lastCenter.getZ()) * fwdZ;
+            if (platformIndex == 1 || directionCone <= 180.0) {
+                double minFwd = platformIndex == 1 ? 0.8 : 0.05;
+                if (stepFwd <= minFwd && attempts < maxAttempts) {
                     continue; // Ensure positive forward progress along base direction
                 }
             }
@@ -457,12 +512,43 @@ public final class JumpToJumpAlgorithm {
             double radBase = Math.toRadians(-effectiveBaseYaw);
             int safeStepX = (int) Math.round(3.0 * Math.sin(radBase));
             int safeStepZ = (int) Math.round(3.0 * Math.cos(radBase));
+            if (safeStepX == 0 && safeStepZ == 0) {
+                safeStepZ = 3;
+            }
             center = new Location(world, lastCenter.getX() + safeStepX, lastCenter.getY(), lastCenter.getZ() + safeStepZ);
             outgoingYaw = effectiveBaseYaw;
         }
 
         // ── 5. Build platform blocks ───────────────────────────────────────
         List<PlacedBlock> blocks = new ArrayList<>(buildBlocksForShape(shape, center, world, theme, rng, platformIndex));
+
+        // Ensure no block of platform 1 touches or overlaps the starting block (platform 0)
+        if (platformIndex == 1 && !isOneBlock) {
+            boolean touches;
+            int pushCount = 0;
+            do {
+                touches = false;
+                for (PlacedBlock pb : blocks) {
+                    int dx = Math.abs(pb.location().getBlockX() - lastCenter.getBlockX());
+                    int dz = Math.abs(pb.location().getBlockZ() - lastCenter.getBlockZ());
+                    if (Math.max(dx, dz) < 2 && pb.location().getBlockY() == lastCenter.getBlockY()) {
+                        touches = true;
+                        break;
+                    }
+                }
+                if (touches && pushCount < 4) {
+                    pushCount++;
+                    double radBase = Math.toRadians(-effectiveBaseYaw);
+                    int pushX = (int) Math.round(Math.sin(radBase));
+                    int pushZ = (int) Math.round(Math.cos(radBase));
+                    if (pushX == 0 && pushZ == 0) pushZ = 1;
+                    center = center.clone().add(pushX, 0, pushZ);
+                    blocks = new ArrayList<>(buildBlocksForShape(shape, center, world, theme, rng, platformIndex));
+                } else {
+                    break;
+                }
+            } while (touches);
+        }
 
         // ── 6. Obstacles (perimeter blocks or head-hitters) ─────────────────
         if (!theme.obstacleMaterials().isEmpty() && rng.nextDouble() < template.resolvedObstacleChance()) {

@@ -219,9 +219,11 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 initialYaw = (float) sec.getDouble("yaw");
             } else if (template.fixedYaw() != null) {
                 initialYaw = template.fixedYaw();
+            } else if (template.directionYaw() != null) {
+                initialYaw = template.directionYaw();
             }
 
-            // Spawn walk-in: start platform (index 0) starts directly beneath the player's feet
+            // Spawn walk-in: start platform (index 0) is the starting block directly beneath the player's feet
             startLoc = new Location(world,
                 playerLoc.getBlockX(),
                 playerLoc.getBlockY() - 1,
@@ -243,6 +245,8 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                 initialYaw = (float) sec.getDouble("yaw");
             } else if (template.fixedYaw() != null) {
                 initialYaw = template.fixedYaw();
+            } else if (template.directionYaw() != null) {
+                initialYaw = template.directionYaw();
             } else {
                 initialYaw = 0.0f;
             }
@@ -257,8 +261,12 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         List<JumpToJumpAlgorithm.GeneratedPlatform> platforms = new ArrayList<>();
         List<Location> recentCenters = new ArrayList<>();
 
-        JumpToJumpAlgorithm.GeneratedPlatform first =
-            JumpToJumpAlgorithm.generateStart(template, world, startLoc, initialYaw, rng);
+        JumpToJumpAlgorithm.GeneratedPlatform first;
+        if (template.entryMode() == EntryMode.WALK_IN) {
+            first = JumpToJumpAlgorithm.generateExistingStart(world, startLoc, initialYaw);
+        } else {
+            first = JumpToJumpAlgorithm.generateStart(template, world, startLoc, initialYaw, rng);
+        }
         platforms.add(first);
         recentCenters.add(first.centerLocation());
 
