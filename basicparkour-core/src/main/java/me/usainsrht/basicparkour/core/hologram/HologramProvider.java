@@ -31,6 +31,17 @@ public interface HologramProvider {
     void createOrUpdateHologram(@NotNull String name, @NotNull Location location, @NotNull List<String> lines);
 
     /**
+     * Same as {@link #createOrUpdateHologram(String, Location, List)} but also applies text-display
+     * properties (billboard, alignment, background, ...). Providers that cannot style holograms
+     * ignore {@code display}.
+     */
+    default void createOrUpdateHologram(@NotNull String name, @NotNull Location location,
+                                        @NotNull List<String> lines,
+                                        @NotNull HologramDisplayProperties display) {
+        createOrUpdateHologram(name, location, lines);
+    }
+
+    /**
      * Removes and deletes the hologram.
      *
      * @param name unique identifier

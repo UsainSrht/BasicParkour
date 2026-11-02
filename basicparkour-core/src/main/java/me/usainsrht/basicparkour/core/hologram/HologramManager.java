@@ -464,9 +464,10 @@ public final class HologramManager {
                 } catch (Throwable ignored) {}
             }
         }
+        final HologramDisplayProperties display = config.getDisplayDefaults().overlay(data.getDisplay());
         plugin.getScheduler().runGlobal(() -> {
             if (activeProvider != null) {
-                activeProvider.createOrUpdateHologram(data.getName(), data.getLocation(), lines);
+                activeProvider.createOrUpdateHologram(data.getName(), data.getLocation(), lines, display);
             }
         });
     }

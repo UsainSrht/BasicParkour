@@ -18,6 +18,7 @@ public final class HologramConfig {
     private boolean updateOnRecord;
     private boolean updateOnCompletion;
     private int defaultLimit;
+    private HologramDisplayProperties displayDefaults = HologramDisplayProperties.EMPTY;
 
     // Leaderboard
     private List<String> leaderboardHeader;
@@ -69,6 +70,7 @@ public final class HologramConfig {
         }
 
         this.defaultLimit = Math.max(1, section.getInt("default-limit", section.getInt("default_limit", 10)));
+        this.displayDefaults = HologramDisplayProperties.fromSection(section.getConfigurationSection("display"));
 
         // Leaderboard
         ConfigurationSection lbSec = section.getConfigurationSection("leaderboard");
@@ -131,6 +133,7 @@ public final class HologramConfig {
         this.updateOnRecord = true;
         this.updateOnCompletion = false;
         this.defaultLimit = 10;
+        this.displayDefaults = HologramDisplayProperties.EMPTY;
 
         this.leaderboardHeader = List.of("<gold>━━━ <bold>{course}</bold> Top {limit} ━━━</gold>");
         this.leaderboardEntryFormat = "<yellow>#{rank} </yellow><white>{player}</white> <gray>—</gray> <aqua>{time}</aqua>";
@@ -182,6 +185,11 @@ public final class HologramConfig {
 
     public int getDefaultLimit() {
         return defaultLimit;
+    }
+
+    /** Global text-display defaults from {@code hologram.display}. */
+    public @NotNull HologramDisplayProperties getDisplayDefaults() {
+        return displayDefaults;
     }
 
     // Leaderboard

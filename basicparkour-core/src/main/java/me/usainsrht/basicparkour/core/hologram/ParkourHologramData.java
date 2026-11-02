@@ -22,6 +22,8 @@ public final class ParkourHologramData {
     private int limit;
     private List<String> customLines;
     private boolean fromConfig;
+    /** Per-hologram overrides layered over the global {@code hologram.display} defaults. */
+    private HologramDisplayProperties display = HologramDisplayProperties.EMPTY;
 
     public ParkourHologramData(@NotNull String name,
                                @NotNull HologramType type,
@@ -92,6 +94,14 @@ public final class ParkourHologramData {
         this.customLines = customLines != null ? new java.util.ArrayList<>(customLines) : new java.util.ArrayList<>();
     }
 
+    public @NotNull HologramDisplayProperties getDisplay() {
+        return display;
+    }
+
+    public void setDisplay(@Nullable HologramDisplayProperties display) {
+        this.display = display != null ? display : HologramDisplayProperties.EMPTY;
+    }
+
     public boolean isFromConfig() {
         return fromConfig;
     }
@@ -112,6 +122,9 @@ public final class ParkourHologramData {
         section.set("pitch", location.getPitch());
         if (customLines != null && !customLines.isEmpty()) {
             section.set("lines", customLines);
+        }
+        if (!display.isEmpty()) {
+            display.serialize(section.createSection("display"));
         }
     }
 
@@ -143,7 +156,9 @@ public final class ParkourHologramData {
 
             List<String> lines = section.isList("lines") ? section.getStringList("lines") : null;
 
-            return new ParkourHologramData(name, type, courseId, loc, limit, lines, fromConfig);
+            ParkourHologramData result = new ParkourHologramData(name, type, courseId, loc, limit, lines, fromConfig);
+            result.setDisplay(HologramDisplayProperties.fromSection(section.getConfigurationSection("display")));
+            return result;
         } catch (Exception e) {
             return null;
         }

@@ -269,6 +269,34 @@ hologram:
   # Default number of entries to show on a leaderboard hologram if not specified during creation.
   default-limit: 10
 
+  # ── Text Display Properties ─────────────────────────────────────────────────
+  # Look of the hologram's text display entity. Applies to FancyHolograms only
+  # (DecentHolograms uses armor stands and ignores these). Every key is optional;
+  # omitted keys keep the provider's default. Applied to all holograms, and each
+  # hologram can override any key with its own 'display:' section (in holograms.yml
+  # or in a static definition below).
+  display:
+    # How the text rotates to face players: CENTER (always faces the player),
+    # VERTICAL (rotates around Y only), HORIZONTAL (tilts only), FIXED (uses yaw/pitch)
+    billboard: CENTER
+    # Text alignment inside the display: CENTER | LEFT | RIGHT
+    alignment: CENTER
+    # Background: default (vanilla translucent black) | transparent | "#RRGGBB" | "#AARRGGBB"
+    background: default
+    # Draw a drop shadow behind the text
+    text-shadow: false
+    # Let the text be seen through blocks
+    see-through: false
+    # Size multiplier (1.0 = normal)
+    scale: 1.0
+    # Fixed light level 0-15; uncomment both to make the text fullbright regardless of surroundings
+    # brightness:
+    #   block: 15
+    #   sky: 15
+    # Entity shadow on the ground (0 disables)
+    # shadow-radius: 0.0
+    # shadow-strength: 1.0
+
   # ── Leaderboard Hologram Format ──────────────────────────────────────────────
   # Formatting for 'leaderboard' type holograms.
   # Available placeholders in header/empty/footer:
@@ -381,6 +409,11 @@ hologram:
   #     z: 200.5
   #     yaw: 0.0
   #     pitch: 0.0
+  #     # Optional per-hologram override of the 'display' defaults above:
+  #     # display:
+  #     #   billboard: VERTICAL
+  #     #   background: transparent
+  #     #   scale: 1.5
   #     # Optional custom lines override:
   #     # lines:
   #     #   - "<gold>Custom Leaderboard</gold>"
