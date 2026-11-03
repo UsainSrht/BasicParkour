@@ -3,7 +3,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # High-stakes elite parkour for master runners.
 # Features edge-to-edge max jumps, acute corner jumps (up to 85°), steep drops,
-# technical +1 climbs with 3 air blocks, and high-tempo 2.5s sliding timer.
+# technical +1 climbs with 3 air blocks, and a 1.75s per-platform standing timer.
 
 id: "single_block_expert"
 display-name: "<gradient:#e52d27:#b31217>Single Block — Expert</gradient>"
@@ -27,7 +27,7 @@ fixed-length: 30
 block-mode: SLIDING_WINDOW
 sliding-window-ahead: 3
 sliding-window-mode: DUAL
-sliding-window-time-seconds: 2.5
+sliding-window-time-seconds: 1.75  # seconds a player may stand on a platform (counted from landing) before it vanishes
 
 appear-animation: GROW
 die-mode: FAIL_DIE

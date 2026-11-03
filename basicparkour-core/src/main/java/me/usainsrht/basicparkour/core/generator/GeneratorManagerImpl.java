@@ -496,49 +496,79 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             recentCenters.subList(0, recentCenters.size() - 30).clear();
         }
 
+        // The start platform counts as "reached" from the moment the run starts, so standing around on
+        // it (e.g. the non-parkour entry area of a walk-in portal) is limited like any other platform.
+        instance.startedAtMillis = System.currentTimeMillis();
+        instance.reachedAt.put(0, instance.startedAtMillis);
+        instance.startHasNoBlocks = initialPlatforms.isEmpty() || initialPlatforms.get(0).placedBlocks().isEmpty();
+
         Runnable aheadTask = () -> {
             if (!instance.isActive() || !player.isOnline()) return;
-            Location playerLoc = player.getLocation();
-            int playerPlatformIndex = getPlayerPlatformIndex(instance, playerLoc);
-            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, playerPlatformIndex);
+            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, instance.reachedIndex);
         };
         playerAheadTriggers.put(player.getUniqueId(), aheadTask);
 
+        // 4-tick period (0.2s) so standing-time limits are enforced reasonably precisely
         FoliaScheduler.RepeatingTask task = scheduler.runRepeatingGlobal(() -> {
             if (!instance.isActive() || !player.isOnline()) return;
 
-            Location playerLoc = player.getLocation();
-            int playerPlatformIndex = getPlayerPlatformIndex(instance, playerLoc);
-
-            performSlidingWindowSweep(instance, template, playerPlatformIndex);
-            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, playerPlatformIndex);
-        }, 10L, 10L);
+            performSlidingWindowSweep(instance, template, player);
+            generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, instance.reachedIndex);
+        }, 4L, 4L);
 
         instance.slidingTask = task;
     }
 
+    /**
+     * Removes platforms behind the player.
+     * <ul>
+     *   <li>BLOCKS: platforms more than {@code ahead} platforms behind the furthest platform reached.</li>
+     *   <li>TIME: a platform vanishes {@code time-seconds} after the player <em>reached</em> it — even if they
+     *       are still standing on it, so they fall. Platforms not reached yet never expire.</li>
+     *   <li>DUAL: either of the above.</li>
+     * </ul>
+     * The start platform's clock starts when the run starts and lasts at least {@code generator.start-grace-seconds}.
+     * For walk-in runs it has no blocks of ours, so exceeding it fails the player instead.
+     */
     private void performSlidingWindowSweep(
         @NotNull GeneratedCourseInstanceImpl instance,
         @NotNull GeneratorTemplate template,
-        int playerPlatformIndex
+        @NotNull Player player
     ) {
         long now = System.currentTimeMillis();
         long timeoutMs = (long) (template.resolvedSlidingWindowTimeSeconds() * 1000.0);
+        long graceMs = (long) (plugin.getConfig().getDouble("generator.start-grace-seconds", 6.0) * 1000.0);
+        long startTimeoutMs = Math.max(timeoutMs, graceMs);
         SlidingWindowMode mode = template.slidingWindowMode();
-        int maxBehind = playerPlatformIndex - template.resolvedSlidingWindowAhead();
+        int reached = instance.reachedIndex;
+        int maxBehind = reached - template.resolvedSlidingWindowAhead();
+        boolean blocksRule = mode == SlidingWindowMode.BLOCKS || mode == SlidingWindowMode.DUAL;
+        boolean timeRule = (mode == SlidingWindowMode.TIME || mode == SlidingWindowMode.DUAL) && timeoutMs > 0;
+
+        // Idling on a walk-in start platform (nothing of ours to remove): fail the player once
+        if (timeRule && instance.startHasNoBlocks && reached == 0 && !instance.idleFailed
+            && now - instance.startedAtMillis >= startTimeoutMs) {
+            instance.idleFailed = true;
+            plugin.getDebugManager().log("Generator", player.getName() + " idled on the start platform for "
+                + (now - instance.startedAtMillis) + "ms, failing run");
+            scheduler.runOnEntity(player, () -> {
+                if (!player.isOnline() || !instance.isActive()) return;
+                player.sendMessage(net.kyori.adventure.text.Component.text("§cYou took too long to start!"));
+                sessionManager.failSession(player,
+                    ParkourSession.FailReason.TIME_LIMIT, "idle on start platform");
+            });
+        }
 
         Map<String, List<PlacedBlock>> toRemoveByChunk = new LinkedHashMap<>();
         synchronized (instance.placedBlocks) {
             for (PlacedBlock pb : instance.placedBlocks) {
-                boolean shouldRemove = false;
-                if (mode == SlidingWindowMode.BLOCKS) {
-                    shouldRemove = pb.platformIndex() <= maxBehind;
-                } else if (mode == SlidingWindowMode.TIME) {
-                    shouldRemove = timeoutMs > 0 && (now - pb.placedAtMillis() >= timeoutMs) && pb.platformIndex() <= playerPlatformIndex;
-                } else if (mode == SlidingWindowMode.DUAL) {
-                    boolean blockTrigger = pb.platformIndex() <= maxBehind;
-                    boolean timeTrigger = timeoutMs > 0 && (now - pb.placedAtMillis() >= timeoutMs) && pb.platformIndex() <= playerPlatformIndex;
-                    shouldRemove = blockTrigger || timeTrigger;
+                boolean shouldRemove = blocksRule && pb.platformIndex() <= maxBehind;
+                if (!shouldRemove && timeRule) {
+                    Long reachedAt = instance.reachedAt.get(pb.platformIndex());
+                    if (reachedAt != null) {
+                        long limit = pb.platformIndex() == 0 ? startTimeoutMs : timeoutMs;
+                        shouldRemove = now - reachedAt >= limit;
+                    }
                 }
                 if (shouldRemove) {
                     int cx = pb.location().getBlockX() >> 4;
@@ -617,29 +647,17 @@ public final class GeneratorManagerImpl implements GeneratorManager {
 
     @Override
     public void notifyPlayerProgress(@NotNull Player player, int platformIndex) {
+        // Record that the player actually reached this platform: this starts its standing-time clock
+        // and drives both generate-ahead and the remove-behind rules.
+        getInstance(player).ifPresent(inst -> {
+            if (inst instanceof GeneratedCourseInstanceImpl impl) {
+                impl.markReached(platformIndex, System.currentTimeMillis());
+            }
+        });
         Runnable trigger = playerAheadTriggers.get(player.getUniqueId());
         if (trigger != null) {
             scheduler.runGlobal(trigger);
         }
-    }
-
-    private int getPlayerPlatformIndex(
-        @NotNull GeneratedCourseInstanceImpl instance,
-        @NotNull Location playerLoc
-    ) {
-        List<Checkpoint> cps = instance.getCourse().getCheckpoints();
-        int closest      = Math.max(0, instance.slidingWindowHead);
-        double closestDist = Double.MAX_VALUE;
-        for (int i = instance.slidingWindowHead; i < cps.size(); i++) {
-            Location spawn = cps.get(i).getSpawnLocation();
-            if (!spawn.getWorld().equals(playerLoc.getWorld())) continue;
-            double dist = spawn.distanceSquared(playerLoc);
-            if (dist < closestDist) {
-                closestDist = dist;
-                closest = i;
-            }
-        }
-        return closest;
     }
 
     // ── Session end / cleanup ──────────────────────────────────────────────
@@ -739,6 +757,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
     private void restoreChunkShared(@NotNull List<PlacedBlock> chunk, @NotNull GeneratedCourseInstanceImpl instance) {
         List<PlacedBlock> toRestore = new ArrayList<>();
         for (PlacedBlock pb : chunk) {
+            if (!instance.placedBlocks.contains(pb)) continue; // already restored by an earlier sweep
             String key = GeneratedCourseInstanceImpl.locationKey(pb.location());
             GeneratedCourseInstanceImpl other = null;
             for (GeneratedCourseInstanceImpl inst : instances.values()) {

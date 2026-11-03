@@ -26,7 +26,7 @@ fixed-length: 30
 block-mode: SLIDING_WINDOW
 sliding-window-ahead: 6
 sliding-window-mode: DUAL
-sliding-window-time-seconds: 12.0
+sliding-window-time-seconds: 6.0   # seconds a player may stand on a platform (counted from landing) before it vanishes
 
 appear-animation: GROW
 die-mode: FAIL_DIE

@@ -45,10 +45,10 @@ sliding-window-ahead: 15  # How many platforms to keep visible ahead (SLIDING_WI
 # ── Sliding Window Mode (dual mode: block-dependent and time-dependent) ───────
 # Options: BLOCKS | TIME | DUAL
 #   BLOCKS - Platforms behind player are removed based strictly on platform distance ahead.
-#   TIME   - Platforms behind player (or stepped on) are removed after X seconds.
-#   DUAL   - Platforms are removed if either distance threshold is exceeded OR time expires!
+#   TIME   - A platform vanishes X seconds after the player lands on it (even if they are still standing on it, so they fall).
+#   DUAL   - Both: platforms vanish when far enough behind OR when their standing time runs out.
 sliding-window-mode: DUAL
-sliding-window-time-seconds: 15.0 # Lifespan in seconds for platforms under TIME or DUAL mode
+sliding-window-time-seconds: 4.0 # Seconds a player may stand on a platform (counted from landing) before it vanishes (TIME or DUAL)
 
 # ── Block Appear Animation ────────────────────────────────────────────────────
 # Defines the animation used when new blocks dynamically appear in endless parkours.

@@ -64,6 +64,29 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
     /** Index of the first platform not yet removed by the sliding window. */
     volatile int slidingWindowHead = 0;
 
+    /** Highest platform index the player has actually reached (monotonic; never flips mid-jump). */
+    volatile int reachedIndex = 0;
+
+    /** When the player reached each platform (platform index -> millis). Drives the standing-time limit. */
+    final ConcurrentHashMap<Integer, Long> reachedAt = new ConcurrentHashMap<>();
+
+    /** When the run started (the start platform counts as "reached" from this moment). */
+    volatile long startedAtMillis = 0L;
+
+    /** True when the start platform has no blocks of ours (walk-in): idling there is punished by failing. */
+    volatile boolean startHasNoBlocks = false;
+
+    /** Set once the idle-on-start failure has been triggered so it fires only once. */
+    volatile boolean idleFailed = false;
+
+    /** Records that the player reached {@code platformIndex}; skipped platforms are marked reached too. */
+    public synchronized void markReached(int platformIndex, long now) {
+        for (int i = reachedIndex + 1; i <= platformIndex; i++) {
+            reachedAt.putIfAbsent(i, now);
+        }
+        if (platformIndex > reachedIndex) reachedIndex = platformIndex;
+    }
+
     /** Active BlockDisplay entities currently animating block appearance. */
     public final Set<org.bukkit.entity.BlockDisplay> activeDisplays = ConcurrentHashMap.newKeySet();
 
@@ -189,11 +212,11 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
         synchronized (placedBlocks) {
             for (PlacedBlock pb : chunkBlocks) {
                 try {
+                    if (!placedBlocks.remove(pb)) continue; // already restored (e.g. duplicate sweep dispatch)
                     String key = locationKey(pb.location());
                     desiredByKey.remove(key);
                     Material original = originalMaterials.remove(key);
                     pb.location().getBlock().setType(original != null ? original : Material.AIR, false);
-                    placedBlocks.remove(pb);
                 } catch (Exception ex) {
                     logger.warning("[Generator] Failed to restore block at " + pb.location() + ": " + ex.getMessage());
                 }

@@ -25,7 +25,7 @@ public enum GeneratorDifficulty {
         /* modifierChance */          0.0,
         /* maxTurnAngle */           20.0,
         /* slidingWindowAhead */      6,
-        /* slidingWindowTimeSeconds */ 12.0
+        /* slidingWindowTimeSeconds */ 6.0
     ),
 
     /**
@@ -44,13 +44,13 @@ public enum GeneratorDifficulty {
         /* modifierChance */          0.05,
         /* maxTurnAngle */           40.0,
         /* slidingWindowAhead */      5,
-        /* slidingWindowTimeSeconds */ 7.0
+        /* slidingWindowTimeSeconds */ 4.0
     ),
 
     /**
      * Challenging technical parkour requiring sprint momentum preservation.
      * True 4-block flat jumps (gap 5), precision 1x1 landings, steeper drops (-2 to +1),
-     * sharp turns (up to 65°) and zig-zags, faster sliding window tempo (4.0s).
+     * sharp turns (up to 65°) and zig-zags, shorter standing window (2.5s per platform).
      */
     HARD(
         /* minGap */                  3,
@@ -63,14 +63,14 @@ public enum GeneratorDifficulty {
         /* modifierChance */          0.12,
         /* maxTurnAngle */           65.0,
         /* slidingWindowAhead */      4,
-        /* slidingWindowTimeSeconds */ 4.0
+        /* slidingWindowTimeSeconds */ 2.5
     ),
 
     /**
      * High-stakes elite parkour for skilled runners.
      * Maximum range jumps (gap 5 flat, gap 6 downhill), acute corner jumps (up to 85°),
      * technical +1 elevation climbs with tight margins, steep 3-block drops,
-     * unforgiving 1x1 landings, rapid reaction time (2.5s sliding window).
+     * unforgiving 1x1 landings, rapid reaction time (1.75s standing window per platform).
      */
     EXPERT(
         /* minGap */                  3,
@@ -83,7 +83,7 @@ public enum GeneratorDifficulty {
         /* modifierChance */          0.20,
         /* maxTurnAngle */           85.0,
         /* slidingWindowAhead */      3,
-        /* slidingWindowTimeSeconds */ 2.5
+        /* slidingWindowTimeSeconds */ 1.75
     );
 
     // ── Default parameter fields ───────────────────────────────────────────

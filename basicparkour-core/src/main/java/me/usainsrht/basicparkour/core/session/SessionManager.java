@@ -325,13 +325,15 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
         if (isEndless) {
             playBlockCountSound(player, targetIdx);
             sendBlockCountMessage(player, targetIdx, gained);
-            if (plugin.getGeneratorManager() != null) {
-                plugin.getGeneratorManager().notifyPlayerProgress(player, targetIdx);
-            }
         } else {
             messages.send(messages.getCheckpointReach(), player,
                 Placeholder.parsed("checkpoint", String.valueOf(checkpoint.getIndex() + 1)),
                 Placeholder.parsed("time", snapshot.formatted()));
+        }
+
+        // Generated runs (endless or fixed-length sliding window) track which platform the player reached
+        if (isGenerated && plugin.getGeneratorManager() != null) {
+            plugin.getGeneratorManager().notifyPlayerProgress(player, targetIdx);
         }
 
         plugin.getDebugManager().onCheckpointReach(player, checkpoint, snapshot.formatted());

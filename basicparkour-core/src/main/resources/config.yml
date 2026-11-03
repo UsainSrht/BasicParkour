@@ -515,7 +515,15 @@ generator:
   # Placeholders available: <blocks>, <score>, <gained>
   block-message: ""
 
+  # Walk-in / spawn grace: seconds a player may stay on the START platform of an endless run
+  # (for walk-in entries this is the non-parkour entry area). The effective limit is the larger of this
+  # and the difficulty's sliding-window-time-seconds. When it runs out the player fails (walk-in)
+  # or the start platform vanishes (teleported entries). Only applies to sliding-window-mode TIME / DUAL.
+  start-grace-seconds: 6.0
+
   # Default difficulty parameters (used unless overridden in the template YAML).
+  # sliding-window-time-seconds = how long a player may stand on a platform (counted from the moment they
+  # land on it) before it vanishes under them. Lower = faster tempo.
   # Note: In vanilla Minecraft:
   # - +1 jump: capped at horizontal center distance 4.0 (3 air blocks) in a straight line.
   # - Flat jump: capped at horizontal center distance 5.0 (4 air blocks - classic 4b jump).
@@ -531,7 +539,7 @@ generator:
       platform-max-size: 3
       max-turn-angle: 20.0
       sliding-window-ahead: 6
-      sliding-window-time-seconds: 12.0
+      sliding-window-time-seconds: 6.0
       obstacle-chance: 0.0
       modifier-chance: 0.0
     MEDIUM:
@@ -543,7 +551,7 @@ generator:
       platform-max-size: 2
       max-turn-angle: 40.0
       sliding-window-ahead: 5
-      sliding-window-time-seconds: 7.0
+      sliding-window-time-seconds: 4.0
       obstacle-chance: 0.10
       modifier-chance: 0.05
     HARD:
@@ -555,7 +563,7 @@ generator:
       platform-max-size: 1
       max-turn-angle: 65.0
       sliding-window-ahead: 4
-      sliding-window-time-seconds: 4.0
+      sliding-window-time-seconds: 2.5
       obstacle-chance: 0.25
       modifier-chance: 0.12
     EXPERT:
@@ -567,7 +575,7 @@ generator:
       platform-max-size: 1
       max-turn-angle: 85.0
       sliding-window-ahead: 3
-      sliding-window-time-seconds: 2.5
+      sliding-window-time-seconds: 1.75
       obstacle-chance: 0.35
       modifier-chance: 0.20
 

@@ -560,15 +560,10 @@ public final class JumpToJumpAlgorithm {
                     center.getBlockX() + ox, center.getBlockY() + 1, center.getBlockZ() + oz);
                 Material obstacleMat = pickFrom(theme.obstacleMaterials(), rng);
                 blocks.add(new PlacedBlock(obstacleLoc, obstacleMat, platformIndex));
-            } else if (difficulty == GeneratorDifficulty.HARD || difficulty == GeneratorDifficulty.EXPERT) {
-                // Single 1x1 block in Hard/Expert: optional head-hitter ceiling obstacle 2 blocks above
-                if (heightDelta <= 0 && rng.nextDouble() < 0.35) {
-                    Location ceilingLoc = new Location(world,
-                        center.getBlockX(), center.getBlockY() + 2, center.getBlockZ());
-                    Material obstacleMat = pickFrom(theme.obstacleMaterials(), rng);
-                    blocks.add(new PlacedBlock(ceilingLoc, obstacleMat, platformIndex));
-                }
             }
+            // Note: no ceiling "head-hitter" obstacles on 1x1 platforms. A block just above the player's head
+            // cuts the jump height, which makes max-distance jumps physically impossible and the distance
+            // tables don't account for it.
         }
 
         // ── 7. Checkpoint ──────────────────────────────────────────────────
