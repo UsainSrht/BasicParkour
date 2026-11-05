@@ -119,6 +119,23 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
     /** Active BlockDisplay entities currently animating block appearance. */
     public final Set<org.bukkit.entity.BlockDisplay> activeDisplays = ConcurrentHashMap.newKeySet();
 
+    /** Set by the manager: decides which players may see a freshly spawned animation display. */
+    volatile java.util.function.Consumer<org.bukkit.entity.BlockDisplay> displayHook;
+
+    /**
+     * Registers a freshly spawned (initially invisible-by-default) animation display and lets the manager reveal it
+     * only to this run's players and to players who are not in a parkour run.
+     */
+    public void trackDisplay(@NotNull org.bukkit.entity.BlockDisplay display) {
+        activeDisplays.add(display);
+        java.util.function.Consumer<org.bukkit.entity.BlockDisplay> hook = displayHook;
+        if (hook != null) {
+            hook.accept(display);
+        } else {
+            display.setVisibleByDefault(true);
+        }
+    }
+
     /** Handle for the sliding-window repeating task. Null for FULL_UPFRONT. */
     volatile FoliaScheduler.RepeatingTask slidingTask;
 

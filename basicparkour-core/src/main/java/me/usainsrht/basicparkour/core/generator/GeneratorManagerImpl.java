@@ -278,7 +278,8 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         for (int i = 1; i < platformCount; i++) {
             JumpToJumpAlgorithm.GeneratedPlatform p =
                 JumpToJumpAlgorithm.generateNext(
-                    template, world, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, i, rng);
+                    template, world, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, i, rng,
+                    runClearance(null));
             platforms.add(p);
             recentCenters.add(p.centerLocation());
             if (recentCenters.size() > 30) {
@@ -324,6 +325,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             startRegion, endRegion, checkpoints);
 
         GeneratedCourseInstanceImpl instance = new GeneratedCourseInstanceImpl(course, data.seed());
+        instance.displayHook = display -> revealDisplay(display, instance);
 
         // Stage all blocks into the instance's placed list (still async — no world reads)
         // In endless (sliding window) runs the platforms after the start platform appear with the
@@ -508,6 +510,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         };
         playerAheadTriggers.put(player.getUniqueId(), aheadTask);
 
+        final int[] reconcileTick = {0};
         // 2-tick period (0.1s) so short standing-time limits are enforced precisely
         FoliaScheduler.RepeatingTask task = scheduler.runRepeatingGlobal(() -> {
             if (!instance.isActive() || !player.isOnline()) return;
@@ -516,6 +519,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             scheduler.runOnEntity(player, () ->
                 instance.confirmLanding(player.isOnGround(), System.currentTimeMillis()));
 
+            if (++reconcileTick[0] % 10 == 0) reconcileHiddenBlocks(player); // every ~1s
             performSlidingWindowSweep(instance, template, player);
             generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, instance.reachedIndex);
         }, 2L, 2L);
@@ -608,7 +612,8 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             final Location prevCenter = lastCenter[0].clone();
             JumpToJumpAlgorithm.GeneratedPlatform newPlatform =
                 JumpToJumpAlgorithm.generateNext(
-                    template, world, lastCenter[0], lastYaw[0], baseYaw, originCenter, recentCenters, nextIndex[0], rng);
+                    template, world, lastCenter[0], lastYaw[0], baseYaw, originCenter, recentCenters, nextIndex[0], rng,
+                    runClearance(instance));
 
             lastCenter[0] = newPlatform.centerLocation().clone();
             lastYaw[0]    = newPlatform.outgoingYawDeg();
@@ -741,17 +746,51 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             if (!other.isOnline()) continue;
             if (!other.getWorld().equals(world)) continue;
             if (sourceInstance != null && sourceInstance.hasPlayer(other)) continue;
-            // If the other runner has their own block at this exact spot, it must stay visible
-            GeneratedCourseInstanceImpl otherInst = (GeneratedCourseInstanceImpl) getInstance(other).orElse(null);
-            org.bukkit.Material own = otherInst != null ? otherInst.desiredAt(pb.location()) : null;
-            final org.bukkit.Material show = own != null ? own : org.bukkit.Material.AIR;
-            scheduler.runOnEntity(other, () -> {
-                if (other.isOnline()) {
-                    other.sendBlockChange(pb.location(), show.createBlockData());
-                }
-            });
+            // The client must end up seeing AIR here (or the runner's own block, if they have one at this spot).
+            // Whether our packet lands before or after the server's own block update for this placement depends on
+            // tick ordering (and on Folia regions ticking independently), so resend a few times;
+            // reconcileHiddenBlocks() is the periodic safety net.
+            for (long delay : new long[] {1L, 3L, 8L}) {
+                scheduler.runOnEntityLater(other, () -> {
+                    if (!other.isOnline()) return;
+                    if (sourceInstance != null && sourceInstance.desiredAt(pb.location()) == null) return; // already removed
+                    GeneratedCourseInstanceImpl oi = (GeneratedCourseInstanceImpl) getInstance(other).orElse(null);
+                    org.bukkit.Material own = oi != null ? oi.desiredAt(pb.location()) : null;
+                    other.sendBlockChange(pb.location(), (own != null ? own : org.bukkit.Material.AIR).createBlockData());
+                }, delay);
+            }
         }
     }
+
+    /**
+     * Safety net: re-hides every block of other runs near {@code player}. Called about once a second per runner, so
+     * a block that slipped through (packet ordering, chunk resend, lag) is hidden again within a moment.
+     */
+    public void reconcileHiddenBlocks(@NotNull Player player) {
+        if (!player.isOnline() || sessionManager.getSession(player).isEmpty()) return;
+        GeneratedCourseInstanceImpl mine = (GeneratedCourseInstanceImpl) getInstance(player).orElse(null);
+        runForPlayer(player, () -> {
+            if (!player.isOnline()) return;
+            Location loc = player.getLocation();
+            World world = loc.getWorld();
+            if (world == null) return;
+            final double radius = 96.0;
+            for (GeneratedCourseInstanceImpl inst : instances.values()) {
+                if (inst == mine || !inst.isActive()) continue;
+                synchronized (inst.placedBlocks) {
+                    for (PlacedBlock pb : inst.placedBlocks) {
+                        Location l = pb.location();
+                        if (!world.equals(l.getWorld())) continue;
+                        if (Math.abs(l.getX() - loc.getX()) > radius || Math.abs(l.getZ() - loc.getZ()) > radius) continue;
+                        if (inst.desiredAt(l) == null) continue;                       // not placed yet
+                        if (mine != null && mine.desiredAt(l) != null) continue;         // my own block wins
+                        player.sendBlockChange(l, org.bukkit.Material.AIR.createBlockData());
+                    }
+                }
+            }
+        });
+    }
+
 
     /**
      * Restores a chunk's worth of blocks, but leaves the real block untouched wherever another
@@ -777,7 +816,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
             }
             for (Player p : instance.getPlayers()) {
                 if (!p.isOnline() || !p.getWorld().equals(pb.location().getWorld())) continue;
-                scheduler.runOnEntity(p, () -> {
+                runForPlayer(p, () -> {
                     if (p.isOnline()) p.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
                 });
             }
@@ -789,20 +828,109 @@ public final class GeneratorManagerImpl implements GeneratorManager {
      * After blocks of {@code source} were restored (real world changed for everybody), re-send
      * blocks that other runners own at the same coordinates so overlapping runs don't erase each other.
      */
-    private void refreshOverlappingRunners(@NotNull List<PlacedBlock> restored, @NotNull GeneratedCourseInstanceImpl source) {
+    // ── Per-player isolation helpers ───────────────────────────────────────
+
+    /**
+     * Runs {@code task} for {@code player}. On Paper from the main thread it runs immediately: deferring to the next
+     * tick (what {@code runOnEntity} does there) would let the client see a new block / display for one tick before
+     * the hide packet follows. On Folia it must go through the entity scheduler.
+     */
+    private void runForPlayer(@NotNull Player player, @NotNull Runnable task) {
+        if (!FoliaScheduler.isFolia() && Bukkit.isPrimaryThread()) {
+            task.run();
+        } else {
+            scheduler.runOnEntity(player, task);
+        }
+    }
+
+    /**
+     * Reveals a freshly spawned (invisible by default) animation display to the owner(s) and to every player who is
+     * not in a parkour run; players running a different parkour never see it.
+     */
+    private void revealDisplay(@NotNull org.bukkit.entity.BlockDisplay display, @NotNull GeneratedCourseInstanceImpl owner) {
+        World world = display.getWorld();
+        for (Player p : world.getPlayers()) {
+            if (!owner.hasPlayer(p) && sessionManager.getSession(p).isPresent()) continue; // someone else's run
+            runForPlayer(p, () -> {
+                if (p.isOnline() && display.isValid()) p.showEntity(plugin, display);
+            });
+        }
+    }
+
+    /** Blocks of other runs inside a freshly sent chunk must be hidden again for this runner. */
+    public void hideOtherRunsInChunk(@NotNull Player player, int chunkX, int chunkZ) {
+        if (!player.isOnline() || sessionManager.getSession(player).isEmpty()) return;
+        GeneratedCourseInstanceImpl mine = (GeneratedCourseInstanceImpl) getInstance(player).orElse(null);
+        World world = player.getWorld();
+        List<PlacedBlock> toHide = new ArrayList<>();
         for (GeneratedCourseInstanceImpl inst : instances.values()) {
-            if (inst == source || !inst.isActive()) continue;
-            for (PlacedBlock pb : restored) {
-                org.bukkit.Material own = inst.desiredAt(pb.location());
-                if (own == null) continue;
-                for (Player p : inst.getPlayers()) {
-                    if (!p.isOnline() || !p.getWorld().equals(pb.location().getWorld())) continue;
-                    scheduler.runOnEntity(p, () -> {
-                        if (p.isOnline()) p.sendBlockChange(pb.location(), own.createBlockData());
-                    });
+            if (inst == mine || !inst.isActive()) continue;
+            synchronized (inst.placedBlocks) {
+                for (PlacedBlock pb : inst.placedBlocks) {
+                    Location l = pb.location();
+                    if (l.getWorld() == null || !l.getWorld().equals(world)) continue;
+                    if ((l.getBlockX() >> 4) != chunkX || (l.getBlockZ() >> 4) != chunkZ) continue;
+                    if (mine != null && mine.desiredAt(l) != null) continue; // my own block wins
+                    if (inst.desiredAt(l) == null) continue; // not actually placed (yet)
+                    toHide.add(pb);
                 }
             }
         }
+        if (toHide.isEmpty()) return;
+        runForPlayer(player, () -> {
+            if (!player.isOnline()) return;
+            for (PlacedBlock pb : toHide) {
+                player.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
+            }
+        });
+    }
+
+    /**
+     * Clearance rule for platform generation: a candidate platform and the jump arc leading to it must stay at least
+     * {@code generator.run-separation} blocks away from every block of other active runs. Their blocks are real
+     * server blocks (hidden only client-side), so anything closer would still physically obstruct the other player.
+     * Returns null when the feature is disabled.
+     */
+    private JumpToJumpAlgorithm.@Nullable RunClearance runClearance(@Nullable GeneratedCourseInstanceImpl self) {
+        int sep = plugin.getConfig().getInt("generator.run-separation", 5);
+        if (sep <= 0) return null;
+        return new JumpToJumpAlgorithm.RunClearance((from, to) -> measureClearance(from, to, self, sep), sep);
+    }
+
+    /**
+     * Smallest Chebyshev distance between the jump path {@code from -> to} (sampled every block, with a 1.25 block
+     * jump arc) and any block of another run; capped at {@code cap + 1}.
+     */
+    private double measureClearance(@NotNull Location from, @NotNull Location to,
+                                    @Nullable GeneratedCourseInstanceImpl self, int cap) {
+        World world = to.getWorld();
+        if (world == null) return cap + 1.0;
+
+        int steps = Math.max(1, (int) Math.ceil(Math.hypot(to.getX() - from.getX(), to.getZ() - from.getZ())));
+        double[] sx = new double[steps + 1], sy = new double[steps + 1], sz = new double[steps + 1];
+        for (int i = 0; i <= steps; i++) {
+            double t = (double) i / steps;
+            sx[i] = from.getX() + (to.getX() - from.getX()) * t + 0.5;
+            sz[i] = from.getZ() + (to.getZ() - from.getZ()) * t + 0.5;
+            sy[i] = from.getY() + (to.getY() - from.getY()) * t + 1.25 * Math.sin(Math.PI * t) + 0.5;
+        }
+
+        double best = cap + 1.0;
+        for (GeneratedCourseInstanceImpl inst : instances.values()) {
+            if (inst == self || !inst.isActive()) continue;
+            synchronized (inst.placedBlocks) {
+                for (PlacedBlock pb : inst.placedBlocks) {
+                    Location l = pb.location();
+                    if (!world.equals(l.getWorld())) continue;
+                    double bx = l.getBlockX() + 0.5, by = l.getBlockY() + 0.5, bz = l.getBlockZ() + 0.5;
+                    for (int i = 0; i <= steps; i++) {
+                        double d = Math.max(Math.abs(bx - sx[i]), Math.max(Math.abs(by - sy[i]), Math.abs(bz - sz[i])));
+                        if (d < best) best = d;
+                    }
+                }
+            }
+        }
+        return best;
     }
 
     @Override
@@ -812,7 +940,7 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         boolean inSession = sessionManager.getSession(player).isPresent();
         GeneratedCourseInstanceImpl myInstance = (GeneratedCourseInstanceImpl) getInstance(player).orElse(null);
 
-        scheduler.runOnEntity(player, () -> {
+        runForPlayer(player, () -> {
             if (!player.isOnline()) return;
             if (inSession) {
                 // In parkour: hide blocks of other generated courses in the same world
@@ -827,6 +955,13 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                                 player.sendBlockChange(pb.location(), org.bukkit.Material.AIR.createBlockData());
                             }
                         }
+                    }
+                }
+                // Animation displays of other runs must not be visible either
+                for (GeneratedCourseInstanceImpl inst : instances.values()) {
+                    if (inst.equals(myInstance)) continue;
+                    for (org.bukkit.entity.BlockDisplay display : inst.activeDisplays) {
+                        if (display.isValid()) player.hideEntity(plugin, display);
                     }
                 }
                 plugin.getDebugManager().log("Generator", "visibility update for " + player.getName()
@@ -850,10 +985,15 @@ public final class GeneratorManagerImpl implements GeneratorManager {
                     if (!inst.isActive()) continue;
                     synchronized (inst.placedBlocks) {
                         for (PlacedBlock pb : inst.placedBlocks) {
-                            if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)) {
+                            if (pb.location().getWorld() != null && pb.location().getWorld().equals(world)
+                                && inst.desiredAt(pb.location()) != null) { // skip blocks still animating in
                                 player.sendBlockChange(pb.location(), pb.desiredMaterial().createBlockData());
                             }
                         }
+                    }
+                    // Animations in progress are visible to anyone who is not in a parkour
+                    for (org.bukkit.entity.BlockDisplay display : inst.activeDisplays) {
+                        if (display.isValid()) player.showEntity(plugin, display);
                     }
                 }
             }

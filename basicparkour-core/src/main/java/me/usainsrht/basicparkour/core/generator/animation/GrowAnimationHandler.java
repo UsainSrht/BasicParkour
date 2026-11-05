@@ -50,6 +50,7 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
             BlockDisplay display = targetLoc.getWorld().spawn(targetLoc, BlockDisplay.class, d -> {
                 d.setBlock(pb.desiredMaterial().createBlockData());
                 d.setBrightness(ambient);
+                d.setVisibleByDefault(false); // revealed per player by instance.trackDisplay(...)
                 d.setTransformation(new Transformation(
                     initialTranslation,
                     new AxisAngle4f(),
@@ -58,7 +59,7 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
                 ));
             });
 
-            instance.activeDisplays.add(display);
+            instance.trackDisplay(display);
 
             // Tick 1: Trigger smooth expansion to full 0.9999 scale (inset slightly to avoid Z-fighting)
             scheduler.runAtLocationLater(targetLoc, () -> {

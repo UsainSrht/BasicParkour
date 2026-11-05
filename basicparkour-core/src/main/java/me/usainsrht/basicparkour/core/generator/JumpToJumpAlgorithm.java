@@ -39,6 +39,15 @@ import java.util.Random;
  */
 public final class JumpToJumpAlgorithm {
 
+    /**
+     * How far generated platforms must stay from other players' runs.
+     *
+     * @param measure  (previous centre, candidate centre) -> smallest distance (Chebyshev, in blocks) between the
+     *                 candidate platform plus the jump leading to it and any block of another run
+     * @param required minimum acceptable distance
+     */
+    public record RunClearance(@NotNull java.util.function.ToDoubleBiFunction<Location, Location> measure, double required) {}
+
     // ── Platform result ────────────────────────────────────────────────────
 
     /**
@@ -267,6 +276,26 @@ public final class JumpToJumpAlgorithm {
         int platformIndex,
         @NotNull Random rng
     ) {
+        return generateNext(template, world, lastCenter, lastYawDeg, baseYawDeg, originCenter, recentCenters,
+            platformIndex, rng, null);
+    }
+
+    /**
+     * Same as above, with optional {@code clearance}: how far a candidate platform (and the jump leading to it) must stay from other players' runs. Candidates that are too close are re-rolled; if none is far enough, the farthest candidate found is used.
+     */
+    @NotNull
+    public static GeneratedPlatform generateNext(
+        @NotNull GeneratorTemplate template,
+        @NotNull World world,
+        @NotNull Location lastCenter,
+        float lastYawDeg,
+        float baseYawDeg,
+        @Nullable Location originCenter,
+        @Nullable List<Location> recentCenters,
+        int platformIndex,
+        @NotNull Random rng,
+        @Nullable RunClearance clearance
+    ) {
         GeneratorTheme theme = template.theme();
         GeneratorDifficulty difficulty = template.difficulty();
 
@@ -318,7 +347,10 @@ public final class JumpToJumpAlgorithm {
         Location center = null;
         float outgoingYaw = lastYawDeg;
         int attempts = 0;
-        int maxAttempts = (recentCenters != null && !recentCenters.isEmpty()) ? 12 : 1;
+        Location bestCenter = null;
+        float bestYaw = lastYawDeg;
+        double bestClear = -1.0;
+        int maxAttempts = clearance != null ? 24 : (recentCenters != null && !recentCenters.isEmpty()) ? 12 : 1;
 
         while (attempts < maxAttempts) {
             attempts++;
@@ -501,6 +533,26 @@ public final class JumpToJumpAlgorithm {
                 }
                 if (collides && attempts < maxAttempts) {
                     continue;
+                }
+            }
+
+            // Keep clear of other players' runs: their blocks are real server blocks, so a platform (or the jump
+            // leading to it) too close to one would physically interfere (collision / rubber-banding) even though
+            // each client hides the other. Re-roll; if nothing is far enough, fall back to the farthest candidate.
+            if (clearance != null) {
+                double clear = clearance.measure().applyAsDouble(lastCenter, candCenter);
+                if (clear < clearance.required()) {
+                    if (clear > bestClear) {
+                        bestClear = clear;
+                        bestCenter = candCenter;
+                        bestYaw = candYaw;
+                    }
+                    if (attempts < maxAttempts) {
+                        continue;
+                    }
+                    // out of attempts: take the candidate with the most room
+                    candCenter = bestCenter;
+                    candYaw = bestYaw;
                 }
             }
 

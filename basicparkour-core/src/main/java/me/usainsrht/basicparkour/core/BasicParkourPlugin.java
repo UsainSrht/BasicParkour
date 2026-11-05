@@ -166,6 +166,7 @@ public final class BasicParkourPlugin extends JavaPlugin {
         // ── 10b. Generator entry listener ────────────────────────────────────
         entryListener = new GeneratorEntryListener(this, generatorManager);
         pm.registerEvents(entryListener, this);
+        pm.registerEvents(new me.usainsrht.basicparkour.core.listener.GeneratedBlockVisibilityListener(generatorManager), this);
 
         // ── 10c. Hologram & NPC Managers ─────────────────────────────────────
         hologramManager = new me.usainsrht.basicparkour.core.hologram.HologramManager(this);

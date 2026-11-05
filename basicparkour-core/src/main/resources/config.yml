@@ -521,6 +521,11 @@ generator:
   # Y level at which generated runs are anchored in dedicated-world mode.
   dedicated-world-y: 80
 
+  # Minimum distance (blocks, all three axes) a new platform keeps from other players' runs in the same world.
+  # Parkour blocks are real server blocks hidden per player, so overlapping runs would still collide with each
+  # other. Best effort (a platform is re-rolled up to 20 times); 0 disables.
+  run-separation: 5
+
   # Sound played when player increases block count in endless parkour
   block-sound:
     enabled: true

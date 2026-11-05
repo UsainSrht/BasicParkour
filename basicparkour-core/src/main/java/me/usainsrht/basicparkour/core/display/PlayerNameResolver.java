@@ -115,11 +115,54 @@ public final class PlayerNameResolver {
 
     /** Same as {@link #resolveAll} but as MiniMessage strings, for text-based hologram templates. */
     public @NotNull CompletableFuture<Map<UUID, String>> resolveAllAsMiniMessage(@NotNull Collection<LeaderboardEntry> entries) {
+        Map<UUID, String> plainNames = new HashMap<>();
+        for (LeaderboardEntry e : entries) plainNames.putIfAbsent(e.playerUuid(), e.playerName());
         return resolveAll(entries).thenApply(map -> {
             Map<UUID, String> strings = new HashMap<>();
-            map.forEach((uuid, comp) -> strings.put(uuid, MINI.serialize(comp)));
+            map.forEach((uuid, comp) -> {
+                String plainName = plainNames.getOrDefault(uuid, "Unknown");
+                String serialized;
+                try {
+                    // Holograms are plain text lines: hover/click/insertion events are meaningless there and
+                    // can break the text-display parser, so drop them before turning the name back into MiniMessage.
+                    serialized = MINI.serialize(stripInteractivity(comp));
+                } catch (Throwable t) {
+                    serialized = "";
+                }
+                if (serialized.isBlank()) {
+                    serialized = MINI.escapeTags(plainName); // never leave the name empty
+                }
+                plugin.getDebugManager().log("PlayerDisplay", "hologram name for " + plainName + " = " + serialized);
+                strings.put(uuid, serialized);
+            });
             return strings;
         });
+    }
+
+    /**
+     * Object components only exist in newer Adventure versions than this plugin compiles against, so detect them by
+     * interface name instead of {@code instanceof}.
+     */
+    private static boolean isObjectComponent(@NotNull Component component) {
+        for (Class<?> type : component.getClass().getInterfaces()) {
+            if (type.getName().equals("net.kyori.adventure.text.ObjectComponent")) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Copy of {@code component} that survives a round trip through MiniMessage text: no hover/click/insertion
+     * events, and object components (player heads, as in SCChat's {@code <player_head>}) are dropped because the
+     * MiniMessage serializer cannot write them, which used to wipe the whole name. Applied recursively.
+     */
+    private static @NotNull Component stripInteractivity(@NotNull Component component) {
+        Component stripped = isObjectComponent(component)
+            ? Component.empty().style(component.style())
+            : component;
+        stripped = stripped.hoverEvent(null).clickEvent(null).insertion(null);
+        List<Component> children = new java.util.ArrayList<>();
+        for (Component child : stripped.children()) children.add(stripInteractivity(child));
+        return stripped.children(children);
     }
 
     public void clearCache() {

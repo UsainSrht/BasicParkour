@@ -59,6 +59,7 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
             BlockDisplay display = targetLoc.getWorld().spawn(targetLoc, BlockDisplay.class, d -> {
                 d.setBlock(pb.desiredMaterial().createBlockData());
                 d.setBrightness(ambient);
+                d.setVisibleByDefault(false); // revealed per player by instance.trackDisplay(...)
                 d.setTransformation(new Transformation(
                     initialTranslation,
                     new AxisAngle4f(),
@@ -67,7 +68,7 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
                 ));
             });
 
-            instance.activeDisplays.add(display);
+            instance.trackDisplay(display);
 
             // Tick 1: Trigger smooth interpolation towards (DISPLAY_OFFSET, DISPLAY_OFFSET, DISPLAY_OFFSET)
             scheduler.runAtLocationLater(targetLoc, () -> {
