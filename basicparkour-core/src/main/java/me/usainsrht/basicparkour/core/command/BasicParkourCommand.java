@@ -735,22 +735,25 @@ public final class BasicParkourCommand {
                                 send(sender, "<gray>No records yet for this course.</gray>"));
                         return;
                     }
-                    plugin.getScheduler().runGlobal(() -> {
-                        for (LeaderboardEntry entry : board) {
-                            if (entry.blocks() > 0) {
-                                plugin.getMessages().getLeaderboardEntryEndless().send(sender,
-                                        Placeholder.parsed("rank", String.valueOf(entry.rank())),
-                                        Placeholder.parsed("player", entry.playerName()),
-                                        Placeholder.parsed("blocks", String.valueOf(entry.blocks())),
-                                        Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
-                            } else {
-                                plugin.getMessages().getLeaderboardEntry().send(sender,
-                                        Placeholder.parsed("rank", String.valueOf(entry.rank())),
-                                        Placeholder.parsed("player", entry.playerName()),
-                                        Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
+                    // Resolve each name through the configurable player-display format (async for offline players)
+                    plugin.getPlayerNameResolver().resolveAll(board).thenAccept(names ->
+                        plugin.getScheduler().runGlobal(() -> {
+                            for (LeaderboardEntry entry : board) {
+                                Component playerName = names.getOrDefault(entry.playerUuid(), Component.text(entry.playerName()));
+                                if (entry.blocks() > 0) {
+                                    plugin.getMessages().getLeaderboardEntryEndless().send(sender,
+                                            Placeholder.parsed("rank", String.valueOf(entry.rank())),
+                                            Placeholder.component("player", playerName),
+                                            Placeholder.parsed("blocks", String.valueOf(entry.blocks())),
+                                            Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
+                                } else {
+                                    plugin.getMessages().getLeaderboardEntry().send(sender,
+                                            Placeholder.parsed("rank", String.valueOf(entry.rank())),
+                                            Placeholder.component("player", playerName),
+                                            Placeholder.parsed("time", TimerFormatter.format(entry.timeMs())));
+                                }
                             }
-                        }
-                    });
+                        }));
                 });
     }
 

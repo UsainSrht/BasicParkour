@@ -34,6 +34,9 @@ dependencies:
     DecentHolograms:
       load: BEFORE
       required: false
+    SCChat:
+      load: BEFORE
+      required: false
     MiniPlaceholders:
       load: BEFORE
       required: false

@@ -282,16 +282,18 @@ public final class HologramManager {
 
         if (data.getType() == HologramType.LEADERBOARD) {
             plugin.getRepository().getLeaderboard(data.getCourseId(), data.getLimit())
-                    .thenAccept(board -> {
-                        List<String> lines = renderLeaderboardLines(data, formattedCourseName, plainCourseName, board, isGen, templateId, command);
-                        applyPapiAndPublish(data, lines);
-                    });
+                    .thenCompose(board -> plugin.getPlayerNameResolver().resolveAllAsMiniMessage(board)
+                            .thenAccept(names -> {
+                                List<String> lines = renderLeaderboardLines(data, formattedCourseName, plainCourseName, board, names, isGen, templateId, command);
+                                applyPapiAndPublish(data, lines);
+                            }));
         } else if (data.getType() == HologramType.COURSE_INFO) {
             plugin.getRepository().getLeaderboard(data.getCourseId(), 1)
-                    .thenAccept(board -> {
-                        List<String> lines = renderCourseInfoLines(data, formattedCourseName, plainCourseName, courseOpt.orElse(null), board, isGen, templateId, command);
-                        applyPapiAndPublish(data, lines);
-                    });
+                    .thenCompose(board -> plugin.getPlayerNameResolver().resolveAllAsMiniMessage(board)
+                            .thenAccept(names -> {
+                                List<String> lines = renderCourseInfoLines(data, formattedCourseName, plainCourseName, courseOpt.orElse(null), board, names, isGen, templateId, command);
+                                applyPapiAndPublish(data, lines);
+                            }));
         } else if (data.getType() == HologramType.CUSTOM) {
             List<String> rawLines = data.getCustomLines();
             List<String> lines = new ArrayList<>();
@@ -311,6 +313,7 @@ public final class HologramManager {
                                                          @NotNull String formattedCourseName,
                                                          @NotNull String plainCourseName,
                                                          @NotNull List<LeaderboardEntry> board,
+                                                         @NotNull java.util.Map<java.util.UUID, String> names,
                                                          boolean isGen,
                                                          @NotNull String templateId,
                                                          @NotNull String command) {
@@ -320,7 +323,7 @@ public final class HologramManager {
         if (customTemplate != null && !customTemplate.isEmpty()) {
             for (String raw : customTemplate) {
                 if (raw.contains("{entries}") || raw.contains("{leaderboard_entries}")) {
-                    appendLeaderboardEntries(lines, data, formattedCourseName, plainCourseName, board, isGen, templateId, command);
+                    appendLeaderboardEntries(lines, data, formattedCourseName, plainCourseName, board, names, isGen, templateId, command);
                 } else {
                     lines.add(replaceCoursePlaceholders(raw, data, formattedCourseName, plainCourseName, isGen, templateId, command, board.size()));
                 }
@@ -331,7 +334,7 @@ public final class HologramManager {
                 lines.add(replaceCoursePlaceholders(h, data, formattedCourseName, plainCourseName, isGen, templateId, command, board.size()));
             }
             // Entries
-            appendLeaderboardEntries(lines, data, formattedCourseName, plainCourseName, board, isGen, templateId, command);
+            appendLeaderboardEntries(lines, data, formattedCourseName, plainCourseName, board, names, isGen, templateId, command);
             // Footer
             List<String> footers = isGen ? config.getLeaderboardFooterEndless() : config.getLeaderboardFooter();
             for (String f : footers) {
@@ -346,6 +349,7 @@ public final class HologramManager {
                                           @NotNull String formattedCourseName,
                                           @NotNull String plainCourseName,
                                           @NotNull List<LeaderboardEntry> board,
+                                          @NotNull java.util.Map<java.util.UUID, String> names,
                                           boolean isGen,
                                           @NotNull String templateId,
                                           @NotNull String command) {
@@ -357,7 +361,7 @@ public final class HologramManager {
         } else {
             for (LeaderboardEntry entry : board) {
                 String format = entry.blocks() > 0 ? config.getLeaderboardEntryFormatBlocks() : config.getLeaderboardEntryFormat();
-                lines.add(replaceEntryPlaceholders(format, entry, data, formattedCourseName, plainCourseName));
+                lines.add(replaceEntryPlaceholders(format, entry, names, data, formattedCourseName, plainCourseName));
             }
         }
     }
@@ -367,6 +371,7 @@ public final class HologramManager {
                                                         @NotNull String plainCourseName,
                                                         @Nullable ParkourCourse course,
                                                         @NotNull List<LeaderboardEntry> board,
+                                                        @NotNull java.util.Map<java.util.UUID, String> names,
                                                         boolean isGen,
                                                         @NotNull String templateId,
                                                         @NotNull String command) {
@@ -376,7 +381,7 @@ public final class HologramManager {
         String recordLine;
         if (top != null) {
             String format = top.blocks() > 0 ? config.getCourseInfoRecordBlocks() : config.getCourseInfoRecord();
-            recordLine = replaceEntryPlaceholders(format, top, data, formattedCourseName, plainCourseName);
+            recordLine = replaceEntryPlaceholders(format, top, names, data, formattedCourseName, plainCourseName);
         } else {
             recordLine = replaceCoursePlaceholders(config.getCourseInfoRecordNone(), data, formattedCourseName, plainCourseName, isGen, templateId, command, 0);
         }
@@ -439,12 +444,13 @@ public final class HologramManager {
 
     private @NotNull String replaceEntryPlaceholders(@NotNull String template,
                                                      @NotNull LeaderboardEntry entry,
+                                                     @NotNull java.util.Map<java.util.UUID, String> names,
                                                      @NotNull ParkourHologramData data,
                                                      @NotNull String formattedCourseName,
                                                      @NotNull String plainCourseName) {
         return template
                 .replace("{rank}", String.valueOf(entry.rank()))
-                .replace("{player}", entry.playerName())
+                .replace("{player}", names.getOrDefault(entry.playerUuid(), entry.playerName()))
                 .replace("{time}", TimerFormatter.format(entry.timeMs()))
                 .replace("{time_ms}", String.valueOf(entry.timeMs()))
                 .replace("{time_raw}", String.valueOf(entry.timeMs()))

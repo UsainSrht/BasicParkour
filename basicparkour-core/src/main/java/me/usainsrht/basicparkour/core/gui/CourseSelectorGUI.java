@@ -70,22 +70,23 @@ public final class CourseSelectorGUI extends BasicParkourGUI {
         List<CompletableFuture<?>> futures = new ArrayList<>();
         Map<String, String> pbMap = new HashMap<>();
         Map<String, String> bestTimeMap = new HashMap<>();
-        Map<String, String> bestPlayerMap = new HashMap<>();
+        Map<String, Component> bestPlayerMap = new java.util.concurrent.ConcurrentHashMap<>();
 
         for (ParkourCourse course : pageCourses) {
             String cid = course.getId();
             futures.add(plugin.getRepository().getPersonalBest(player.getUniqueId(), cid)
                     .thenAccept(opt -> pbMap.put(cid, opt.map(r -> TimerFormatter.format(r.timeMs())).orElse("None"))));
             futures.add(plugin.getRepository().getLeaderboard(cid, 1)
-                    .thenAccept(board -> {
+                    .thenCompose(board -> {
                         if (!board.isEmpty()) {
                             LeaderboardEntry top = board.get(0);
                             bestTimeMap.put(cid, TimerFormatter.format(top.timeMs()));
-                            bestPlayerMap.put(cid, top.playerName());
-                        } else {
-                            bestTimeMap.put(cid, "None");
-                            bestPlayerMap.put(cid, "None");
+                            return plugin.getPlayerNameResolver().resolve(top.playerUuid(), top.playerName())
+                                    .thenAccept(name -> bestPlayerMap.put(cid, name));
                         }
+                        bestTimeMap.put(cid, "None");
+                        bestPlayerMap.put(cid, Component.text("None"));
+                        return CompletableFuture.<Void>completedFuture(null);
                     }));
         }
 
@@ -124,7 +125,7 @@ public final class CourseSelectorGUI extends BasicParkourGUI {
 
                         String pb = pbMap.getOrDefault(course.getId(), "None");
                         String bestTime = bestTimeMap.getOrDefault(course.getId(), "None");
-                        String bestPlayer = bestPlayerMap.getOrDefault(course.getId(), "None");
+                        Component bestPlayer = bestPlayerMap.getOrDefault(course.getId(), Component.text("None"));
 
                         TagResolver resolver = TagResolver.resolver(
                                 Placeholder.parsed("course_id", course.getId()),
@@ -132,7 +133,7 @@ public final class CourseSelectorGUI extends BasicParkourGUI {
                                 Placeholder.parsed("checkpoints", String.valueOf(course.getCheckpoints().size())),
                                 Placeholder.parsed("personal_best", pb),
                                 Placeholder.parsed("best_time", bestTime),
-                                Placeholder.parsed("best_player", bestPlayer)
+                                Placeholder.component("best_player", bestPlayer)
                         );
 
                         ItemStack item = courseItemSec != null

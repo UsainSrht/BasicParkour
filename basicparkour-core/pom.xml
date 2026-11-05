@@ -97,6 +97,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- SCChat (optional soft dependency, API only) -->
+        <dependency>
+            <groupId>me.usainsrht</groupId>
+            <artifactId>SCChat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- DecentHolograms -->
         <dependency>
             <groupId>com.github.decentsoftware-eu</groupId>

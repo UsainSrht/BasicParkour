@@ -53,7 +53,8 @@ public final class LeaderboardGUI extends BasicParkourGUI {
         final List<Integer> slots = entrySlots;
         int limit = slots.size();
 
-        plugin.getRepository().getLeaderboard(course.getId(), limit).thenAccept(board ->
+        plugin.getRepository().getLeaderboard(course.getId(), limit).thenCompose(board ->
+                plugin.getPlayerNameResolver().resolveAll(board).thenAccept(names ->
                 plugin.getScheduler().runOnEntity(player, () -> {
                     if (!player.isOnline()) return;
 
@@ -89,7 +90,7 @@ public final class LeaderboardGUI extends BasicParkourGUI {
                             LeaderboardEntry entry = board.get(i);
                             TagResolver res = TagResolver.resolver(
                                     Placeholder.parsed("rank", String.valueOf(entry.rank())),
-                                    Placeholder.parsed("player_name", entry.playerName()),
+                                    Placeholder.component("player_name", names.getOrDefault(entry.playerUuid(), Component.text(entry.playerName()))),
                                     Placeholder.parsed("blocks", String.valueOf(entry.blocks())),
                                     Placeholder.parsed("time", TimerFormatter.format(entry.timeMs()))
                             );
@@ -123,7 +124,7 @@ public final class LeaderboardGUI extends BasicParkourGUI {
                     }
 
                     player.openInventory(inventory);
-                }));
+                })));
     }
 
     @Override

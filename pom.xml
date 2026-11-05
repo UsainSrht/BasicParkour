@@ -57,6 +57,10 @@
             <id>codemc-repo</id>
             <url>https://repo.codemc.io/repository/maven-public/</url>
         </repository>
+        <repository>
+            <id>repsy-survivalcage</id>
+            <url>https://repo.repsy.io/mvn/usainsrht/survivalcage</url>
+        </repository>
     </repositories>
 
     <dependencyManagement>
@@ -156,6 +160,14 @@
                 <groupId>de.oliver</groupId>
                 <artifactId>FancyHolograms</artifactId>
                 <version>2.10.0</version>
+                <scope>provided</scope>
+            </dependency>
+
+            <!-- SCChat (optional soft dependency, API only) -->
+            <dependency>
+                <groupId>me.usainsrht</groupId>
+                <artifactId>SCChat</artifactId>
+                <version>1.5.3</version>
                 <scope>provided</scope>
             </dependency>
 

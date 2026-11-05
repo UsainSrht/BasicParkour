@@ -244,6 +244,28 @@ ghost:
     # Whether the replay ghost is rendered as a translucent entity on the parkour team.
     translucent: true
 
+# ─── Player Display Names ─────────────────────────────────────────────────────
+# How player names are shown wherever BasicParkour lists players: leaderboard holograms,
+# course-info records, the /top command, and the leaderboard / course selector menus.
+player-display:
+  # MiniMessage format. Tags:
+  #   <player>  -> the player's plain name
+  #   <uuid>    -> the player's UUID
+  #   plus ANY MiniPlaceholders tag, e.g. <luckperms_prefix>, <scchatuser_displayname>
+  # Examples:
+  #   "<player>"                                  (default, plain name)
+  #   "<scchatuser_displayname>"                  (SCChat display name)
+  #   "<red><luckperms_prefix><player>"           (rank prefix + name)
+  #
+  # Online players resolve every MiniPlaceholders tag against the player.
+  # Offline players have no audience, so only global placeholders resolve and any other
+  # placeholder tag is dropped, EXCEPT <scchatuser_displayname>: it is fetched asynchronously
+  # from SCChat (with its LuckPerms data), so it works for offline players too.
+  format: "<player>"
+
+  # Results are cached per player for this many seconds (0 = no cache).
+  cache-seconds: 30
+
 # ─── Hologram System ──────────────────────────────────────────────────────────
 hologram:
   # Whether the hologram system is enabled.

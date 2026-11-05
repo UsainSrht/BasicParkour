@@ -71,6 +71,7 @@ public final class BasicParkourPlugin extends JavaPlugin {
     private me.usainsrht.basicparkour.core.hotbar.HotbarManager hotbarManager;
     private me.usainsrht.basicparkour.core.tab.TabHook tabHook;
     private me.usainsrht.basicparkour.core.hologram.HologramManager hologramManager;
+    private me.usainsrht.basicparkour.core.display.PlayerNameResolver playerNameResolver;
     private me.usainsrht.basicparkour.core.npc.NpcManager npcManager;
     private me.usainsrht.basicparkour.core.listener.GeneratorEntryListener entryListener;
     private me.usainsrht.basicparkour.core.debug.DebugManager debugManager;
@@ -100,6 +101,7 @@ public final class BasicParkourPlugin extends JavaPlugin {
         editorManager = new EditorManager(this);
         commandConfig = new CommandConfig(getConfig());
         debugManager = new me.usainsrht.basicparkour.core.debug.DebugManager(this);
+        playerNameResolver = new me.usainsrht.basicparkour.core.display.PlayerNameResolver(this);
 
         // ── 2. Scheduler ─────────────────────────────────────────────────────
         scheduler = new FoliaScheduler(this);
@@ -401,6 +403,11 @@ public final class BasicParkourPlugin extends JavaPlugin {
 
     public me.usainsrht.basicparkour.core.tab.TabHook getTabHook() {
         return tabHook;
+    }
+
+    /** Resolves leaderboard/record player names through the configurable player-display format. */
+    public me.usainsrht.basicparkour.core.display.PlayerNameResolver getPlayerNameResolver() {
+        return playerNameResolver;
     }
 
     public me.usainsrht.basicparkour.core.hologram.HologramManager getHologramManager() {
