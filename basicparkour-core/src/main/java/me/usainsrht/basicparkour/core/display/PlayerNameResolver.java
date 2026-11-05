@@ -91,7 +91,11 @@ public final class PlayerNameResolver {
         return result
             .exceptionally(ex -> Component.text(name))
             .thenApply(component -> {
-                if (ttlMs > 0) cache.put(uuid, new Cached(component, System.currentTimeMillis() + ttlMs));
+                if (ttlMs > 0) {
+                    long t = System.currentTimeMillis();
+                    cache.put(uuid, new Cached(component, t + ttlMs));
+                    if (cache.size() > 256) cache.values().removeIf(c -> c.expiresAt() <= t); // keep it bounded
+                }
                 return component;
             });
     }
