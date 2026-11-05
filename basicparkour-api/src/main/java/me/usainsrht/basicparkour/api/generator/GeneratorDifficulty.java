@@ -25,13 +25,13 @@ public enum GeneratorDifficulty {
         /* modifierChance */          0.0,
         /* maxTurnAngle */           20.0,
         /* slidingWindowAhead */      6,
-        /* slidingWindowTimeSeconds */ 6.0
+        /* slidingWindowTimeSeconds */ 3.0
     ),
 
     /**
      * Standard balanced Minecraft parkour.
      * Classic sprint-jumps (1-3 air blocks), mild verticality (-1 to +1),
-     * natural winding turns (up to 40°), 1x1 and 2x2 platforms, occasional obstacles.
+     * natural winding turns (up to 35°), 1x1 and 2x2 platforms, occasional obstacles.
      */
     MEDIUM(
         /* minGap */                  2,
@@ -42,15 +42,15 @@ public enum GeneratorDifficulty {
         /* platformMaxSize */         2,
         /* obstacleChance */          0.10,
         /* modifierChance */          0.05,
-        /* maxTurnAngle */           40.0,
+        /* maxTurnAngle */           35.0,
         /* slidingWindowAhead */      5,
-        /* slidingWindowTimeSeconds */ 4.0
+        /* slidingWindowTimeSeconds */ 2.0
     ),
 
     /**
      * Challenging technical parkour requiring sprint momentum preservation.
      * True 4-block flat jumps (gap 5), precision 1x1 landings, steeper drops (-2 to +1),
-     * sharp turns (up to 65°) and zig-zags, shorter standing window (2.5s per platform).
+     * sharp turns (up to 55°) and zig-zags, a 1.1s standing window per platform.
      */
     HARD(
         /* minGap */                  3,
@@ -61,16 +61,16 @@ public enum GeneratorDifficulty {
         /* platformMaxSize */         1,
         /* obstacleChance */          0.25,
         /* modifierChance */          0.12,
-        /* maxTurnAngle */           65.0,
+        /* maxTurnAngle */           55.0,
         /* slidingWindowAhead */      4,
-        /* slidingWindowTimeSeconds */ 2.5
+        /* slidingWindowTimeSeconds */ 1.1
     ),
 
     /**
      * High-stakes elite parkour for skilled runners.
-     * Maximum range jumps (gap 5 flat, gap 6 downhill), acute corner jumps (up to 85°),
+     * Maximum range jumps (gap 5 flat, gap 6 downhill), acute corner jumps (up to 80°),
      * technical +1 elevation climbs with tight margins, steep 3-block drops,
-     * unforgiving 1x1 landings, rapid reaction time (1.75s standing window per platform).
+     * unforgiving 1x1 landings, a 0.7s standing window per platform.
      */
     EXPERT(
         /* minGap */                  3,
@@ -81,9 +81,9 @@ public enum GeneratorDifficulty {
         /* platformMaxSize */         1,
         /* obstacleChance */          0.35,
         /* modifierChance */          0.20,
-        /* maxTurnAngle */           85.0,
+        /* maxTurnAngle */           80.0,
         /* slidingWindowAhead */      3,
-        /* slidingWindowTimeSeconds */ 1.75
+        /* slidingWindowTimeSeconds */ 0.7
     );
 
     // ── Default parameter fields ───────────────────────────────────────────

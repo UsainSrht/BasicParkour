@@ -539,7 +539,7 @@ generator:
       platform-max-size: 3
       max-turn-angle: 20.0
       sliding-window-ahead: 6
-      sliding-window-time-seconds: 6.0
+      sliding-window-time-seconds: 3.0
       obstacle-chance: 0.0
       modifier-chance: 0.0
     MEDIUM:
@@ -549,9 +549,9 @@ generator:
       max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 2
-      max-turn-angle: 40.0
+      max-turn-angle: 35.0
       sliding-window-ahead: 5
-      sliding-window-time-seconds: 4.0
+      sliding-window-time-seconds: 2.0
       obstacle-chance: 0.10
       modifier-chance: 0.05
     HARD:
@@ -561,9 +561,9 @@ generator:
       max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 1
-      max-turn-angle: 65.0
+      max-turn-angle: 55.0
       sliding-window-ahead: 4
-      sliding-window-time-seconds: 2.5
+      sliding-window-time-seconds: 1.1
       obstacle-chance: 0.25
       modifier-chance: 0.12
     EXPERT:
@@ -573,9 +573,9 @@ generator:
       max-height-delta: 1
       platform-min-size: 1
       platform-max-size: 1
-      max-turn-angle: 85.0
+      max-turn-angle: 80.0
       sliding-window-ahead: 3
-      sliding-window-time-seconds: 1.75
+      sliding-window-time-seconds: 0.7
       obstacle-chance: 0.35
       modifier-chance: 0.20
 

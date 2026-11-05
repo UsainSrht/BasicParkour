@@ -508,13 +508,17 @@ public final class GeneratorManagerImpl implements GeneratorManager {
         };
         playerAheadTriggers.put(player.getUniqueId(), aheadTask);
 
-        // 4-tick period (0.2s) so standing-time limits are enforced reasonably precisely
+        // 2-tick period (0.1s) so short standing-time limits are enforced precisely
         FoliaScheduler.RepeatingTask task = scheduler.runRepeatingGlobal(() -> {
             if (!instance.isActive() || !player.isOnline()) return;
 
+            // Start the standing clock of the platform the player just landed on (needs the entity thread)
+            scheduler.runOnEntity(player, () ->
+                instance.confirmLanding(player.isOnGround(), System.currentTimeMillis()));
+
             performSlidingWindowSweep(instance, template, player);
             generateAheadIfNeeded(instance, template, world, rng, lastCenter, lastYaw, baseYaw, originCenter, recentCenters, nextIndex, instance.reachedIndex);
-        }, 4L, 4L);
+        }, 2L, 2L);
 
         instance.slidingTask = task;
     }

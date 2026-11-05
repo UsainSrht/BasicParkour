@@ -2,7 +2,7 @@
 # BasicParkour — Single Block Endless (Hard Preset)
 # ──────────────────────────────────────────────────────────────────────────────
 # Technical single block parkour demanding momentum preservation.
-# Features true 4-block flat jumps, sharp turns, zig-zags, +1 climbs, and a 2.5s per-platform standing timer.
+# Features true 4-block flat jumps, sharp turns, zig-zags, +1 climbs, and a 1.1s per-platform standing timer.
 
 id: "single_block_hard"
 display-name: "<gradient:#ff9966:#ff5e62>Single Block — Hard</gradient>"
@@ -10,14 +10,14 @@ display-name: "<gradient:#ff9966:#ff5e62>Single Block — Hard</gradient>"
 difficulty: HARD
 
 theme:
-  name: "Crimson"
+  name: "BasicPlanks"
   platform-materials:
-    - CRIMSON_PLANKS
-    - RED_TERRACOTTA
-    - ORANGE_TERRACOTTA
-    - BLACKSTONE
-  accent-materials:
-    - CRYING_OBSIDIAN
+    - OAK_PLANKS
+    - STRIPPED_OAK_LOG
+    - BIRCH_PLANKS
+    - STRIPPED_BIRCH_LOG
+    - SPRUCE_PLANKS
+    - STRIPPED_SPRUCE_LOG
   obstacle-materials: []
 
 length-type: INFINITE
@@ -26,7 +26,7 @@ fixed-length: 30
 block-mode: SLIDING_WINDOW
 sliding-window-ahead: 4
 sliding-window-mode: DUAL
-sliding-window-time-seconds: 2.5   # seconds a player may stand on a platform (counted from landing) before it vanishes
+sliding-window-time-seconds: 1.1   # seconds a player may stand on a platform (counted from landing) before it vanishes
 
 appear-animation: GROW
 die-mode: FAIL_DIE

@@ -48,7 +48,7 @@ sliding-window-ahead: 15  # How many platforms to keep visible ahead (SLIDING_WI
 #   TIME   - A platform vanishes X seconds after the player lands on it (even if they are still standing on it, so they fall).
 #   DUAL   - Both: platforms vanish when far enough behind OR when their standing time runs out.
 sliding-window-mode: DUAL
-sliding-window-time-seconds: 4.0 # Seconds a player may stand on a platform (counted from landing) before it vanishes (TIME or DUAL)
+sliding-window-time-seconds: 2.0 # Seconds a player may stand on a platform (counted from landing) before it vanishes (TIME or DUAL)
 
 # ── Block Appear Animation ────────────────────────────────────────────────────
 # Defines the animation used when new blocks dynamically appear in endless parkours.

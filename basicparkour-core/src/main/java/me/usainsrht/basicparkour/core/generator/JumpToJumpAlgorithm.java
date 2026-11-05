@@ -299,9 +299,10 @@ public final class JumpToJumpAlgorithm {
         int minGap = Math.max(2, template.resolvedMinGap());
         int maxGap = Math.max(minGap, template.resolvedMaxGap());
 
-        // Vanilla physics limit: +1 jump CANNOT exceed gap 4 (3 air blocks)
+        // Vanilla physics limit: +1 jump CANNOT exceed gap 4 (3 air blocks). Below EXPERT it is capped at
+        // gap 3 (2 air blocks): the 3-air-block +1 jump needs near-perfect momentum, an expert-only skill.
         if (heightDelta >= 1) {
-            maxGap = Math.min(maxGap, 4);
+            maxGap = Math.min(maxGap, difficulty == GeneratorDifficulty.EXPERT ? 4 : 3);
         } else if (heightDelta <= -2 && (difficulty == GeneratorDifficulty.EXPERT || maxGap >= 5)) {
             // Downward jumps have increased clearance; expert drops can extend to gap 6
             maxGap = Math.min(maxGap + (heightDelta <= -3 ? 2 : 1), 6);
@@ -655,9 +656,9 @@ public final class JumpToJumpAlgorithm {
                 gap = roll < 0.65 ? 2 : 3;
             }
             case MEDIUM -> {
-                // 25% gap 2, 45% gap 3, 30% gap 4
-                if (roll < 0.25) gap = 2;
-                else if (roll < 0.70) gap = 3;
+                // 30% gap 2, 45% gap 3, 25% gap 4 (3-air-block jumps are the occasional challenge)
+                if (roll < 0.30) gap = 2;
+                else if (roll < 0.75) gap = 3;
                 else gap = 4;
             }
             case HARD -> {
@@ -667,9 +668,10 @@ public final class JumpToJumpAlgorithm {
                 else gap = 5;
             }
             case EXPERT -> {
-                // 20% gap 3, 40% gap 4, 35% gap 5, 5% gap 6 (on drops)
-                if (roll < 0.20) gap = 3;
-                else if (roll < 0.60) gap = 4;
+                // 30% gap 3, 40% gap 4, 25% gap 5, 5% gap 6 (on drops): max-range jumps stay a
+                // minority so chaining them is very hard but not impossible
+                if (roll < 0.30) gap = 3;
+                else if (roll < 0.70) gap = 4;
                 else if (roll < 0.95) gap = 5;
                 else gap = 6;
             }

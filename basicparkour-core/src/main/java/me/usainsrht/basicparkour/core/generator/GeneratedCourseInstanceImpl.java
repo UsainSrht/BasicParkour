@@ -79,12 +79,41 @@ public final class GeneratedCourseInstanceImpl implements GeneratedCourseInstanc
     /** Set once the idle-on-start failure has been triggered so it fires only once. */
     volatile boolean idleFailed = false;
 
-    /** Records that the player reached {@code platformIndex}; skipped platforms are marked reached too. */
+    /**
+     * When the checkpoint trigger of a platform fired but the player has not been confirmed standing on it yet.
+     * The trigger region reaches 2 blocks above the platform, so it fires while the player is still falling;
+     * the standing-time clock only starts once they actually land (see {@link #confirmLanding}).
+     */
+    final ConcurrentHashMap<Integer, Long> triggeredAt = new ConcurrentHashMap<>();
+
+    /**
+     * Records that the player reached {@code platformIndex}. Skipped platforms start their clock immediately;
+     * the reached platform's clock starts at landing.
+     */
     public synchronized void markReached(int platformIndex, long now) {
-        for (int i = reachedIndex + 1; i <= platformIndex; i++) {
+        for (int i = reachedIndex + 1; i < platformIndex; i++) {
             reachedAt.putIfAbsent(i, now);
         }
-        if (platformIndex > reachedIndex) reachedIndex = platformIndex;
+        if (platformIndex > reachedIndex) {
+            reachedIndex = platformIndex;
+            reachedAt.putIfAbsent(platformIndex, Long.MAX_VALUE); // placeholder: not landed yet, never expires
+            triggeredAt.put(platformIndex, now);
+        }
+    }
+
+    /**
+     * Starts the clock of every triggered-but-not-landed platform once the player is on the ground
+     * (or after a fallback delay, so a missed landing detection can never make a platform immortal).
+     * Must be called on the player's entity thread.
+     */
+    public void confirmLanding(boolean onGround, long now) {
+        if (triggeredAt.isEmpty()) return;
+        triggeredAt.forEach((idx, trig) -> {
+            if (onGround || now - trig >= 1500L) {
+                reachedAt.put(idx, now);
+                triggeredAt.remove(idx);
+            }
+        });
     }
 
     /** Active BlockDisplay entities currently animating block appearance. */
