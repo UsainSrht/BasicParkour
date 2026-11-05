@@ -33,6 +33,24 @@ public interface BlockAnimationHandler {
     );
 
     /**
+     * Light level the (still empty) block position currently receives. Pinning a BlockDisplay to it keeps the
+     * display looking the same after the real solid block is placed on that position, because an opaque
+     * block cell has light 0 and an unpinned display inside it would flash dark for a moment.
+     * Must be called on the region thread that owns {@code loc}.
+     */
+    @NotNull
+    static org.bukkit.entity.Display.Brightness ambientBrightness(@NotNull Location loc) {
+        try {
+            org.bukkit.block.Block block = loc.getBlock();
+            return new org.bukkit.entity.Display.Brightness(
+                Math.max(0, Math.min(15, block.getLightFromBlocks())),
+                Math.max(0, Math.min(15, block.getLightFromSky())));
+        } catch (Throwable t) {
+            return new org.bukkit.entity.Display.Brightness(15, 15);
+        }
+    }
+
+    /**
      * Resolves the handler for the given animation type.
      */
     @NotNull

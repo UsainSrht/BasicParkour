@@ -45,6 +45,9 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
             return;
         }
 
+        // Pin the display light to the empty block position's ambient light (see GrowAnimationHandler)
+        final org.bukkit.entity.Display.Brightness ambient = BlockAnimationHandler.ambientBrightness(targetLoc);
+
         // Relative offset from target block to previous platform (inset by DISPLAY_OFFSET to eliminate Z-fighting)
         float dx = (float) (previousPlatformLocation.getX() - targetLoc.getX()) + DISPLAY_OFFSET;
         float dy = (float) (previousPlatformLocation.getY() - targetLoc.getY()) + DISPLAY_OFFSET;
@@ -55,6 +58,7 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
         try {
             BlockDisplay display = targetLoc.getWorld().spawn(targetLoc, BlockDisplay.class, d -> {
                 d.setBlock(pb.desiredMaterial().createBlockData());
+                d.setBrightness(ambient);
                 d.setTransformation(new Transformation(
                     initialTranslation,
                     new AxisAngle4f(),
@@ -82,7 +86,7 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
                 ));
 
                 // When slide finishes, place real block first, then remove display entity
-                // 2 ticks later to eliminate the 1-frame air flicker while the client chunk mesher updates.
+                // 3 ticks later to eliminate the 1-frame air flicker while the client chunk mesher updates.
                 scheduler.runAtLocationLater(targetLoc, () -> {
                     if (!instance.isActive()) {
                         instance.activeDisplays.remove(display);
@@ -95,7 +99,7 @@ public final class DefaultSlideAnimationHandler implements BlockAnimationHandler
                     scheduler.runAtLocationLater(targetLoc, () -> {
                         instance.activeDisplays.remove(display);
                         try { display.remove(); } catch (Exception ignored) {}
-                    }, 2L);
+                    }, 3L);
                 }, SLIDE_TICKS);
             }, 1L);
         } catch (Throwable t) {

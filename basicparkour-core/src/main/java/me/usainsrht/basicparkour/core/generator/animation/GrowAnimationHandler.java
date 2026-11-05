@@ -37,6 +37,11 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
         if (!instance.isActive()) return;
         Location targetLoc = pb.location();
 
+        // Freeze the display's light level at what the (still empty) block position receives. Once the real
+        // solid block is placed this position becomes opaque (light 0) and an unpinned display would render
+        // dark for the 2 ticks it lingers - that is the 1-frame flash.
+        final org.bukkit.entity.Display.Brightness ambient = BlockAnimationHandler.ambientBrightness(targetLoc);
+
         // Initial state: 0.01 scale, centered in the block
         Vector3f initialScale = new Vector3f(0.01f, 0.01f, 0.01f);
         Vector3f initialTranslation = new Vector3f(0.495f, 0.495f, 0.495f);
@@ -44,6 +49,7 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
         try {
             BlockDisplay display = targetLoc.getWorld().spawn(targetLoc, BlockDisplay.class, d -> {
                 d.setBlock(pb.desiredMaterial().createBlockData());
+                d.setBrightness(ambient);
                 d.setTransformation(new Transformation(
                     initialTranslation,
                     new AxisAngle4f(),
@@ -71,7 +77,7 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
                 ));
 
                 // When grow finishes, place real block first, then remove display entity
-                // 2 ticks later to eliminate the 1-frame air flicker while the client chunk mesher updates.
+                // 3 ticks later to eliminate the 1-frame air flicker while the client chunk mesher updates.
                 scheduler.runAtLocationLater(targetLoc, () -> {
                     if (!instance.isActive()) {
                         instance.activeDisplays.remove(display);
@@ -84,7 +90,7 @@ public final class GrowAnimationHandler implements BlockAnimationHandler {
                     scheduler.runAtLocationLater(targetLoc, () -> {
                         instance.activeDisplays.remove(display);
                         try { display.remove(); } catch (Exception ignored) {}
-                    }, 2L);
+                    }, 3L);
                 }, GROW_TICKS);
             }, 1L);
         } catch (Throwable t) {
