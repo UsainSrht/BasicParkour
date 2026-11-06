@@ -195,6 +195,10 @@ public final class GeneratorEntryListener implements Listener {
     private void startGeneratedRun(@NotNull Player player, @NotNull String templateId) {
         Optional<GeneratorTemplate> tplOpt = generatorManager.getTemplate(templateId);
         if (tplOpt.isPresent()) {
+            if (!plugin.getAccessControl().canPlayTemplate(player, tplOpt.get().id())) {
+                denyEntry(player, "endless parkour");
+                return;
+            }
             generatorManager.generate(player, tplOpt.get())
                 .thenAccept(session -> {
                     if (session == null) {
@@ -208,7 +212,11 @@ public final class GeneratorEntryListener implements Listener {
 
         // Support premade courses as well for walk-in entry!
         var courseOpt = plugin.getBasicParkourAPI().getCourseRegistry().getCourse(templateId);
-        if (courseOpt.isPresent()) {
+        if (courseOpt.isPresent() && !(courseOpt.get() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse)) {
+            if (!plugin.getAccessControl().canPlayCourse(player, courseOpt.get().getId())) {
+                denyEntry(player, "course");
+                return;
+            }
             plugin.getScheduler().runOnEntity(player, () ->
                 plugin.getBasicParkourAPI().getSessionManager().startSession(player, courseOpt.get(), false));
             return;
@@ -216,6 +224,11 @@ public final class GeneratorEntryListener implements Listener {
 
         player.sendMessage(net.kyori.adventure.text.Component.text(
             "§cUnknown generator template or course: " + templateId));
+    }
+
+    /** Tells a player without the permission why nothing happened (portals are throttled by the entry cooldown). */
+    private void denyEntry(@NotNull Player player, @NotNull String what) {
+        player.sendMessage(net.kyori.adventure.text.Component.text("§cYou do not have permission to play this " + what + "."));
     }
 
     @Nullable

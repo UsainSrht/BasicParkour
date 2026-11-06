@@ -467,6 +467,15 @@ commands:
     use: basicparkour.use
     # Required for reload / resetpb sub-commands.
     admin: basicparkour.admin
+    # Per-course / per-endless-template access. {id} is the lower-cased course id or template id.
+    # Players only see (tab-complete, menus) and can only start what they have access to; admins can use all.
+    # Examples: deny "basicparkour.endless.medium" to keep a group on easy only, or set default-access to
+    # false and grant "basicparkour.endless.easy" / "basicparkour.course.spawn" to whitelist.
+    # Generated runs (generated_N) are never listed or joinable by name.
+    course: "basicparkour.course.{id}"
+    endless: "basicparkour.endless.{id}"
+    # What applies when a permission plugin has not set the node above for a player.
+    default-access: true
   # Sub-command literal names (rename any of these freely).
   subcommands:
     menu: menu

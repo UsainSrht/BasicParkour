@@ -242,6 +242,7 @@ public final class PlayerMoveListener implements Listener {
             if (!course.getWorldName().equals(to.getWorld().getName())) continue;
             if (course.getStartRegion().overlaps(player.getBoundingBox()) || course.getStartRegion().contains(to)) {
                 // When player walks into the start region, start right there without teleporting
+                if (!plugin.getAccessControl().canPlayCourse(player, course.getId())) { setStartCooldown(player.getUniqueId(), 3000L); continue; }
                 setStartCooldown(player.getUniqueId(), 1500L);
                 sessionManager.startSession(player, course, false);
                 return; // Start at most one course
@@ -249,6 +250,7 @@ public final class PlayerMoveListener implements Listener {
             if (course.getPortalRegion().isPresent()) {
                 var portal = course.getPortalRegion().get();
                 if (portal.overlaps(player.getBoundingBox()) || portal.contains(to)) {
+                    if (!plugin.getAccessControl().canPlayCourse(player, course.getId())) { setStartCooldown(player.getUniqueId(), 3000L); continue; }
                     setStartCooldown(player.getUniqueId(), 1500L);
                     sessionManager.startSession(player, course, course.isPortalTeleport());
                     return;

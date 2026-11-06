@@ -47,8 +47,7 @@ public final class CourseSelectorGUI extends BasicParkourGUI {
             return;
         }
 
-        List<ParkourCourse> allCourses = new ArrayList<>(
-                BasicParkourAPI.get().getCourseRegistry().getCourses());
+        List<ParkourCourse> allCourses = new ArrayList<>(plugin.getAccessControl().visibleCourses(player));
         allCourses.sort(Comparator.comparing(ParkourCourse::getId));
 
         List<Integer> rawCourseSlots = sec.getIntegerList("course_slots");
@@ -210,6 +209,10 @@ public final class CourseSelectorGUI extends BasicParkourGUI {
             } else {
                 // Left click -> join course
                 player.closeInventory();
+                if (!plugin.getAccessControl().canPlayCourse(player, course.getId())) {
+                    player.sendMessage(MINI.deserialize("<red>You do not have permission to play this course.</red>"));
+                    return;
+                }
                 plugin.getSessionManager().startSession(player, course);
             }
         }

@@ -78,9 +78,16 @@ public final class BasicParkourCommand {
         this.npcManager = npcManager;
     }
 
-    private void suggestCoursesAndDrafts(@NotNull com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
-        BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
-        if (editorManager != null) {
+    /**
+     * Course ids a sender may tab-complete. Generated runs (generated_N) are never listed. Admins also get editor
+     * drafts and every premade course; everyone else only the courses they are allowed to play.
+     */
+    private void suggestCoursesAndDrafts(@NotNull CommandSender sender,
+                                         @NotNull com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+        var access = plugin.getAccessControl();
+        boolean admin = access.isAdmin(sender);
+        (admin ? access.allPremadeCourses() : access.visibleCourses(sender)).forEach(c -> builder.suggest(c.getId()));
+        if (admin && editorManager != null) {
             editorManager.getDraftIds().forEach(builder::suggest);
         }
     }
@@ -121,7 +128,7 @@ public final class BasicParkourCommand {
         root.then(Commands.literal(cfg.getCmdJoin())
                 .then(Commands.argument("courseId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses()
+                            plugin.getAccessControl().visibleCourses(ctx.getSource().getSender())
                                     .forEach(c -> builder.suggest(c.getId()));
                             return builder.buildFuture();
                         })
@@ -161,8 +168,8 @@ public final class BasicParkourCommand {
         root.then(Commands.literal(cfg.getCmdTop())
                 .then(Commands.argument("courseId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            suggestCoursesAndDrafts(builder);
-                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
+                            plugin.getAccessControl().visibleTemplates(ctx.getSource().getSender())
                                     .forEach(t -> builder.suggest(t.leaderboardCourseId()));
                             return builder.buildFuture();
                         })
@@ -187,7 +194,7 @@ public final class BasicParkourCommand {
                 })
                 .then(Commands.argument("courseId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getCourseRegistry().getCourses()
+                            plugin.getAccessControl().visibleCourses(ctx.getSource().getSender())
                                     .forEach(c -> builder.suggest(c.getId()));
                             return builder.buildFuture();
                         })
@@ -229,8 +236,8 @@ public final class BasicParkourCommand {
                         })
                         .then(Commands.argument("templateId", StringArgumentType.word())
                                 .suggests((ctx, builder) -> {
-                                    BasicParkourAPI.get().getGeneratorManager().getTemplates()
-                                            .forEach(t -> builder.suggest(t.id()));
+                                    plugin.getAccessControl().visibleTemplates(ctx.getSource().getSender())
+                                    .forEach(t -> builder.suggest(t.id()));
                                     return builder.buildFuture();
                                 })
                                 .executes(ctx -> {
@@ -247,7 +254,7 @@ public final class BasicParkourCommand {
                         .suggests((ctx, builder) -> {
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -287,7 +294,7 @@ public final class BasicParkourCommand {
                             }
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -308,7 +315,7 @@ public final class BasicParkourCommand {
                             builder.suggest("global");
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -329,7 +336,7 @@ public final class BasicParkourCommand {
                             builder.suggest("global");
                             BasicParkourAPI.get().getGeneratorManager().getTemplates()
                                     .forEach(t -> builder.suggest(t.id()));
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -368,7 +375,7 @@ public final class BasicParkourCommand {
                 })
                 .then(Commands.argument("templateId", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            BasicParkourAPI.get().getGeneratorManager().getTemplates()
+                            plugin.getAccessControl().visibleTemplates(ctx.getSource().getSender())
                                     .forEach(t -> builder.suggest(t.id()));
                             return builder.buildFuture();
                         })
@@ -418,7 +425,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -432,7 +439,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -446,7 +453,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -460,7 +467,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -474,7 +481,7 @@ public final class BasicParkourCommand {
                 .requires(src -> src.getSender().hasPermission(cfg.getPermAdmin()))
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            suggestCoursesAndDrafts(builder);
+                            suggestCoursesAndDrafts(ctx.getSource().getSender(), builder);
                             return builder.buildFuture();
                         })
                         .executes(ctx -> {
@@ -497,7 +504,8 @@ public final class BasicParkourCommand {
                                         })
                                         .then(Commands.argument("courseId", StringArgumentType.word())
                                                 .suggests((ctx, builder) -> {
-                                                    BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                                                    plugin.getAccessControl().visibleCourses(ctx.getSource().getSender())
+                                    .forEach(c -> builder.suggest(c.getId()));
                                                     BasicParkourAPI.get().getGeneratorManager().getTemplates().forEach(t -> builder.suggest(t.leaderboardCourseId()));
                                                     return builder.buildFuture();
                                                 })
@@ -581,7 +589,8 @@ public final class BasicParkourCommand {
                                                 })
                                                 .then(Commands.argument("courseId", StringArgumentType.word())
                                                         .suggests((ctx, builder) -> {
-                                                            BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                                                            plugin.getAccessControl().visibleCourses(ctx.getSource().getSender())
+                                    .forEach(c -> builder.suggest(c.getId()));
                                                             return builder.buildFuture();
                                                         })
                                                         .executes(ctx -> {
@@ -626,7 +635,8 @@ public final class BasicParkourCommand {
                                 .then(Commands.argument("id", StringArgumentType.word())
                                         .then(Commands.argument("courseId", StringArgumentType.word())
                                                 .suggests((ctx, builder) -> {
-                                                    BasicParkourAPI.get().getCourseRegistry().getCourses().forEach(c -> builder.suggest(c.getId()));
+                                                    plugin.getAccessControl().visibleCourses(ctx.getSource().getSender())
+                                    .forEach(c -> builder.suggest(c.getId()));
                                                     return builder.buildFuture();
                                                 })
                                                 .executes(ctx -> {
@@ -699,12 +709,17 @@ public final class BasicParkourCommand {
         }
         Optional<ParkourCourse> courseOpt = BasicParkourAPI.get()
                 .getCourseRegistry().getCourse(courseId);
-        if (courseOpt.isEmpty()) {
+        // Generated runs (generated_N) are private; they can never be joined by name
+        if (courseOpt.isEmpty() || courseOpt.get() instanceof me.usainsrht.basicparkour.api.generator.GeneratedParkourCourse) {
             plugin.getMessages().getNoCourse().send((net.kyori.adventure.audience.Audience) player);
             return;
         }
         if (sessionManager.getSession(player).isPresent()) {
             plugin.getMessages().getAlreadyInSession().send((net.kyori.adventure.audience.Audience) player);
+            return;
+        }
+        if (!plugin.getAccessControl().canPlayCourse(player, courseOpt.get().getId())) {
+            send(player, "<red>You do not have permission to play this course.</red>");
             return;
         }
         sessionManager.startSession(player, courseOpt.get());
@@ -1091,20 +1106,24 @@ public final class BasicParkourCommand {
         }
         var gm = BasicParkourAPI.get().getGeneratorManager();
         if (templateId == null) {
-            var templates = gm.getTemplates();
+            var templates = plugin.getAccessControl().visibleTemplates(player);
             if (templates.isEmpty()) {
-                send(player, "<red>No generator templates are available.</red>");
+                send(player, "<red>No endless parkours are available to you.</red>");
                 return;
             }
             if (templates.size() > 1) {
                 new me.usainsrht.basicparkour.core.gui.GeneratorSelectorGUI(plugin, player).open();
                 return;
             }
-            templateId = templates.iterator().next().id();
+            templateId = templates.get(0).id();
         }
         Optional<GeneratorTemplate> tplOpt = gm.getTemplate(templateId);
         if (tplOpt.isEmpty()) {
             send(player, "<red>Unknown generator template: " + templateId + "</red>");
+            return;
+        }
+        if (!plugin.getAccessControl().canPlayTemplate(player, tplOpt.get().id())) {
+            send(player, "<red>You do not have permission to play this endless parkour.</red>");
             return;
         }
         gm.generate(player, tplOpt.get());

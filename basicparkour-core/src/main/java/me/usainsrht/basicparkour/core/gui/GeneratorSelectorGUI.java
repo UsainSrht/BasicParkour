@@ -37,8 +37,7 @@ public final class GeneratorSelectorGUI extends BasicParkourGUI {
             return;
         }
 
-        List<GeneratorTemplate> templates = new ArrayList<>(
-                BasicParkourAPI.get().getGeneratorManager().getTemplates());
+        List<GeneratorTemplate> templates = new ArrayList<>(plugin.getAccessControl().visibleTemplates(player));
         templates.sort(Comparator.comparing(GeneratorTemplate::id));
 
         int size = sec.getInt("size", 27);
@@ -113,6 +112,10 @@ public final class GeneratorSelectorGUI extends BasicParkourGUI {
         if (tpl != null) {
             player.closeInventory();
             player.sendMessage(MINI.deserialize("<gray>Generating endless parkour run for <aqua>" + tpl.displayName() + "</aqua>...</gray>"));
+            if (!plugin.getAccessControl().canPlayTemplate(player, tpl.id())) {
+                player.sendMessage(MINI.deserialize("<red>You do not have permission to play this endless parkour.</red>"));
+                return;
+            }
             BasicParkourAPI.get().getGeneratorManager().generate(player, tpl);
         }
     }
