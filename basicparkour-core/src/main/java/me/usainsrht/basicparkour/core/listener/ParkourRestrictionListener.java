@@ -1,6 +1,7 @@
 package me.usainsrht.basicparkour.core.listener;
 
 import io.papermc.paper.event.entity.EntityKnockbackEvent;
+import io.papermc.paper.event.entity.EntityLungeEvent;
 import me.usainsrht.basicparkour.api.course.ParkourCourse;
 import me.usainsrht.basicparkour.api.event.CourseLeaveEvent;
 import me.usainsrht.basicparkour.api.session.ParkourSession;
@@ -8,6 +9,8 @@ import me.usainsrht.basicparkour.core.BasicParkourPlugin;
 import me.usainsrht.basicparkour.core.session.SessionManager;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.Material;
+import org.bukkit.event.entity.EntityPotionEffectEvent;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -16,6 +19,7 @@ import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerRiptideEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.jetbrains.annotations.NotNull;
@@ -115,6 +119,42 @@ public final class ParkourRestrictionListener implements Listener {
                 event.setCancelled(true);
             }
         }
+    }
+
+    /** Trident Riptide launches are cancelled during parkour ({@code restrictions.disable-riptide}). */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onRiptide(@NotNull PlayerRiptideEvent event) {
+        if (!plugin.getConfig().getBoolean("restrictions.disable-riptide", true)) return;
+        if (sessionManager.getSession(event.getPlayer()).isEmpty()) return;
+        event.setCancelled(true);
+    }
+
+    /**
+     * Potion effects are banned during parkour: new effects (potions, beacons, conduits, food, commands...) are
+     * refused unless whitelisted. Removing effects is always allowed, and so is the plugin's own invisibility.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPotionEffect(@NotNull EntityPotionEffectEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        if (sessionManager.getSession(player).isEmpty()) return;
+        if (!sessionManager.isPotionBanActive()) return;
+
+        EntityPotionEffectEvent.Action action = event.getAction();
+        if (action != EntityPotionEffectEvent.Action.ADDED && action != EntityPotionEffectEvent.Action.CHANGED) return;
+        if (sessionManager.isApplyingOwnEffect(player.getUniqueId())) return;
+
+        PotionEffect incoming = event.getNewEffect();
+        if (incoming == null || sessionManager.isPotionEffectWhitelisted(incoming.getType())) return;
+        event.setCancelled(true);
+    }
+
+    /** Spear Lunge boosts are cancelled during parkour ({@code restrictions.disable-lunge}). */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onLunge(@NotNull EntityLungeEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        if (sessionManager.getSession(player).isEmpty()) return;
+        if (!plugin.getConfig().getBoolean("restrictions.disable-lunge", true)) return;
+        event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)

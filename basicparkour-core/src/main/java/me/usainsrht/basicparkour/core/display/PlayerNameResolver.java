@@ -140,23 +140,12 @@ public final class PlayerNameResolver {
     }
 
     /**
-     * Object components only exist in newer Adventure versions than this plugin compiles against, so detect them by
-     * interface name instead of {@code instanceof}.
-     */
-    private static boolean isObjectComponent(@NotNull Component component) {
-        for (Class<?> type : component.getClass().getInterfaces()) {
-            if (type.getName().equals("net.kyori.adventure.text.ObjectComponent")) return true;
-        }
-        return false;
-    }
-
-    /**
      * Copy of {@code component} that survives a round trip through MiniMessage text: no hover/click/insertion
      * events, and object components (player heads, as in SCChat's {@code <player_head>}) are dropped because the
      * MiniMessage serializer cannot write them, which used to wipe the whole name. Applied recursively.
      */
     private static @NotNull Component stripInteractivity(@NotNull Component component) {
-        Component stripped = isObjectComponent(component)
+        Component stripped = component instanceof net.kyori.adventure.text.ObjectComponent
             ? Component.empty().style(component.style())
             : component;
         stripped = stripped.hoverEvent(null).clickEvent(null).insertion(null);

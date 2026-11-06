@@ -237,6 +237,9 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
             plugin.getTabHook().onPlayerEnterSession(player);
         }
 
+        // Potion-effect ban: strip effects before visibility may add the plugin's own invisibility
+        clearBannedPotionEffects(player);
+
         // Apply visibility (hide other parkour players or make them translucent)
         applyVisibility(player);
 
@@ -1112,6 +1115,46 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
     /** Tracks which players were hidden from which viewers by BasicParkour. */
     private final Map<UUID, Set<UUID>> hiddenByParkour = new ConcurrentHashMap<>();
 
+    /** Players for whom BasicParkour itself is applying a potion effect right now (exempt from the effect ban). */
+    private final Set<UUID> applyingOwnEffect = ConcurrentHashMap.newKeySet();
+
+    public boolean isApplyingOwnEffect(@NotNull UUID uuid) {
+        return applyingOwnEffect.contains(uuid);
+    }
+
+    /** True when potion effects are banned during parkour ({@code restrictions.disable-potion-effects}). */
+    public boolean isPotionBanActive() {
+        return plugin.getConfig().getBoolean("restrictions.disable-potion-effects", true);
+    }
+
+    /** Whether an effect is on the {@code restrictions.potion-effect-whitelist} (kept / still obtainable). */
+    public boolean isPotionEffectWhitelisted(@NotNull org.bukkit.potion.PotionEffectType type) {
+        for (String name : plugin.getConfig().getStringList("restrictions.potion-effect-whitelist")) {
+            org.bukkit.potion.PotionEffectType listed = parseEffectType(name);
+            if (listed != null && listed.equals(type)) return true;
+        }
+        return false;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static org.bukkit.potion.PotionEffectType parseEffectType(@NotNull String name) {
+        String key = name.trim().toLowerCase(java.util.Locale.ROOT);
+        if (key.isEmpty()) return null;
+        org.bukkit.potion.PotionEffectType byKey =
+            org.bukkit.Registry.EFFECT.get(org.bukkit.NamespacedKey.minecraft(key));
+        return byKey != null ? byKey : org.bukkit.potion.PotionEffectType.getByName(name.trim().toUpperCase(java.util.Locale.ROOT));
+    }
+
+    /** Removes every active effect that is not whitelisted. Called when a run starts (entity thread). */
+    private void clearBannedPotionEffects(@NotNull Player player) {
+        if (!isPotionBanActive()) return;
+        for (org.bukkit.potion.PotionEffect effect : new java.util.ArrayList<>(player.getActivePotionEffects())) {
+            if (!isPotionEffectWhitelisted(effect.getType())) {
+                player.removePotionEffect(effect.getType());
+            }
+        }
+    }
+
     /**
      * Restores all players that were hidden by the given viewer.
      */
@@ -1133,11 +1176,17 @@ public final class SessionManager implements BasicParkourAPI.SessionManager {
 
         String mode = getVisibilityMode(player);
         if (mode.equals("TRANSLUCENT")) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                org.bukkit.potion.PotionEffectType.INVISIBILITY,
-                org.bukkit.potion.PotionEffect.INFINITE_DURATION,
-                0, false, false, false
-            ));
+            // BasicParkour's own effect: exempt from the potion-effect ban while it is being applied
+            applyingOwnEffect.add(player.getUniqueId());
+            try {
+                player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.INVISIBILITY,
+                    org.bukkit.potion.PotionEffect.INFINITE_DURATION,
+                    0, false, false, false
+                ));
+            } finally {
+                applyingOwnEffect.remove(player.getUniqueId());
+            }
         } else {
             player.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
         }

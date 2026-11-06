@@ -11,7 +11,7 @@
     <packaging>pom</packaging>
 
     <name>Basic Parkour Plugin</name>
-    <description>API-first, Folia-native parkour plugin for Paper 1.21+ / MC 26.1</description>
+    <description>API-first, Folia-native parkour plugin for Paper 26.3</description>
     <url>https://github.com/yourorg/basicparkour</url>
 
     <modules>
@@ -20,11 +20,11 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <java.version>25</java.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
+        <paper.version>26.3.build.170-beta</paper.version>
         <hikari.version>5.1.0</hikari.version>
         <sqlite.version>3.45.3.0</sqlite.version>
         <mysql.version>8.4.0</mysql.version>

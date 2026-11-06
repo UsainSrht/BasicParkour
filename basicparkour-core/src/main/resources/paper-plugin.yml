@@ -1,7 +1,7 @@
 name: BasicParkour
 version: '${project.version}'
 main: me.usainsrht.basicparkour.core.BasicParkourPlugin
-api-version: '1.21'
+api-version: '26.3'
 description: API-first, Folia-native parkour plugin
 authors:
   - UsainSrht

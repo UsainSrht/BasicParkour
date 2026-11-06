@@ -139,6 +139,20 @@ restrictions:
   # Prevents throwing Ender Pearls or eating Chorus Fruit during parkour.
   disable-ender-pearls: true
 
+  # Disables the spear Lunge enchantment boost during parkour.
+  disable-lunge: true
+
+  # Disables trident Riptide launches during parkour (the riptide event is cancelled).
+  # Normal trident throws are controlled by disable-projectile-launch above.
+  disable-riptide: true
+
+  # Disables potion effects during parkour: effects are removed when a run starts and cannot be gained
+  # later (potions, beacons, conduits, food, commands...). Effects listed in the whitelist below are kept
+  # and may still be gained. Use effect names, e.g. NIGHT_VISION, WATER_BREATHING.
+  disable-potion-effects: true
+  potion-effect-whitelist:
+    - NIGHT_VISION
+
   # Enforces a specific gamemode during parkour, restored automatically upon exit.
   # Options: NONE | ADVENTURE | SURVIVAL
   force-gamemode: NONE
